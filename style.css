@@ -1,0 +1,17 @@
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  
+  body {
+    background-color: white !important;
+    padding: 0 !important;
+  }
+
+  section, header {
+    box-shadow: none !important;
+    border: none !important;
+    padding: 0 !important;
+    margin-bottom: 1.5rem !important;
+  }
+}

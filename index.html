@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sistema de Gestão de Clientes & Descontos</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body class="bg-gray-100 font-sans text-gray-800 p-4 md:p-8">
+
+  <div class="max-w-6xl mx-auto">
+    
+    <!-- ==================== TELA 0: SELEÇÃO DE PERFIL ==================== -->
+    <div id="telaLogin" class="flex flex-col items-center justify-center min-h-[80vh]">
+      <div class="bg-white p-8 rounded-lg shadow-lg max-w-md w-full text-center border-t-4 border-blue-600">
+        <h1 class="text-2xl font-bold text-gray-900 mb-2">Acesso ao Sistema</h1>
+        <p class="text-sm text-gray-500 mb-6">Selecione o seu perfil para visualizar sua carteira de clientes.</p>
+        
+        <div class="space-y-3">
+          <button onclick="entrarSistema('admin')" class="w-full bg-gray-800 hover:bg-gray-900 text-white font-bold py-3 rounded">
+            👑 Administrador (Ver Todos)
+          </button>
+          <button onclick="entrarSistema('Consultor 1')" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded">
+            👤 Consultor 1
+          </button>
+          <button onclick="entrarSistema('Consultor 2')" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded">
+            👤 Consultor 2
+          </button>
+        </div>
+      </div>
+    </div>
+
+
+    <!-- ==================== TELA 1: LISTA E BUSCA DE CLIENTES ==================== -->
+    <div id="telaClientes" class="space-y-6 hidden">
+      
+      <!-- CABEÇALHO DA LISTA -->
+      <header class="flex flex-col md:flex-row justify-between items-start md:items-center bg-white p-6 rounded-lg shadow border-l-4 border-blue-600 gap-4">
+        <div>
+          <h1 class="text-2xl font-bold text-gray-900">Carteira de Clientes</h1>
+          <p class="text-sm text-gray-500">Perfil ativo: <span id="nomePerfilAtivo" class="font-bold text-blue-600"></span></p>
+        </div>
+        <div class="flex gap-2">
+          <button onclick="sairSistema()" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold px-4 py-2 rounded text-sm">
+            Sair / Trocar Perfil
+          </button>
+          <button onclick="abrirModalCliente()" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-4 py-2 rounded text-sm flex items-center gap-1">
+            ➕ Novo Cliente
+          </button>
+        </div>
+      </header>
+
+      <!-- BARRA DE BUSCA -->
+      <div class="bg-white p-4 rounded-lg shadow flex gap-2 items-center">
+        <span class="text-gray-400">🔍</span>
+        <input 
+          type="text" 
+          id="campoBusca" 
+          oninput="filtrarClientes()" 
+          placeholder="Buscar cliente por Código, Razão Social ou CNPJ..." 
+          class="w-full border-none outline-none text-sm p-1"
+        />
+      </div>
+
+      <!-- LISTA / TABELA DE CLIENTES -->
+      <div class="bg-white rounded-lg shadow overflow-x-auto">
+        <table class="w-full text-left border-collapse">
+          <thead>
+            <tr class="bg-gray-100 text-gray-700 uppercase text-xs border-b">
+              <th class="p-3">Código</th>
+              <th class="p-3">Razão Social / Fantasia</th>
+              <th class="p-3">Consultor</th>
+              <th class="p-3 text-center">Ações</th>
+            </tr>
+          </thead>
+          <tbody id="tabelaClientesCorpo">
+            <!-- Linhas de clientes geradas via JS -->
+          </tbody>
+        </table>
+      </div>
+
+    </div>
+
+
+    <!-- ==================== TELA 2: TABELA DE DESCONTOS DO CLIENTE ==================== -->
+    <div id="telaDescontos" class="space-y-6 hidden">
+      
+      <button onclick="voltarParaClientes()" class="no-print bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold px-4 py-2 rounded text-sm flex items-center gap-2">
+        ← Voltar para Lista de Clientes
+      </button>
+
+      <!-- DADOS DO CLIENTE SELECIONADO -->
+      <header class="bg-white p-6 rounded-lg shadow border-l-4 border-emerald-600 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
+          <div class="flex items-center gap-2">
+            <span id="detalheCodigo" class="bg-blue-100 text-blue-800 font-bold px-2 py-0.5 rounded text-xs"></span>
+            <h1 id="detalheRazao" class="text-2xl font-bold text-gray-900"></h1>
+          </div>
+          <p id="detalheFantasia" class="text-sm text-gray-600 font-medium"></p>
+          <div class="text-xs text-gray-500 mt-2 flex flex-wrap gap-4">
+            <span id="detalheCnpj"></span>
+            <span id="detalheConsultor" class="font-bold text-emerald-700"></span>
+          </div>
+        </div>
+        <div class="no-print flex gap-2">
+          <button onclick="window.print()" class="bg-gray-700 hover:bg-gray-800 text-white px-4 py-2 rounded text-sm font-semibold flex items-center gap-1">
+            🖨️ Imprimir / PDF
+          </button>
+        </div>
+      </header>
+
+      <!-- FORMULÁRIO PARA ADICIONAR PRODUTO -->
+      <section class="bg-white p-6 rounded-lg shadow space-y-4">
+        <h2 class="text-xl font-bold text-gray-800 border-b pb-2">Planilha de Descontos</h2>
+
+        <div class="no-print grid grid-cols-1 md:grid-cols-5 gap-3 bg-gray-50 p-4 rounded border">
+          <div class="md:col-span-2">
+            <label class="block text-xs font-semibold uppercase text-gray-600 mb-1">Produto / Referência</label>
+            <input type="text" id="prodNome" placeholder="Ex: Cód 12345" class="w-full border rounded p-2 text-sm" />
+          </div>
+          <div class="md:col-span-2">
+            <label class="block text-xs font-semibold uppercase text-gray-600 mb-1">Desconto Máx (%)</label>
+            <input type="number" step="0.01" id="prodDesconto" placeholder="Ex: 12.5" class="w-full border rounded p-2 text-sm" />
+          </div>
+          <div class="flex items-end">
+            <button onclick="adicionarProduto()" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2 px-4 rounded text-sm">
+              + Adicionar
+            </button>
+          </div>
+        </div>
+
+        <!-- TABELA DE DESCONTOS -->
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse border border-gray-200">
+            <thead>
+              <tr class="bg-gray-100 text-gray-700 uppercase text-xs">
+                <th class="border border-gray-200 p-3">Produto</th>
+                <th class="border border-gray-200 p-3 w-48 text-right">Desconto (%)</th>
+                <th class="border border-gray-200 p-3 w-32 text-center no-print">Ações</th>
+              </tr>
+            </thead>
+            <tbody id="tabelaDescontosCorpo"></tbody>
+          </table>
+        </div>
+      </section>
+
+    </div>
+
+  </div>
+
+
+  <!-- ==================== MODAL DE CADASTRO / EDIÇÃO DE CLIENTE ==================== -->
+  <div id="modalCliente" class="fixed inset-0 bg-black/50 flex items-center justify-center p-4 hidden z-50">
+    <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full p-6 space-y-4">
+      <div class="flex justify-between items-center border-b pb-2">
+        <h3 id="modalTitulo" class="text-lg font-bold text-gray-800">Cadastrar Novo Cliente</h3>
+        <button onclick="fecharModalCliente()" class="text-gray-500 hover:text-gray-700 text-xl font-bold">&times;</button>
+      </div>
+
+      <form id="formCliente" onsubmit="salvarCliente(event)" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <input type="hidden" id="cliId" />
+        
+        <div>
+          <label class="block text-xs font-semibold uppercase text-gray-600 mb-1">Código *</label>
+          <input type="text" id="cliCodigo" class="w-full border rounded p-2 text-sm" required />
+        </div>
+        <div>
+          <label class="block text-xs font-semibold uppercase text-gray-600 mb-1">Consultor Responsável *</label>
+          <select id="cliConsultor" class="w-full border rounded p-2 text-sm bg-white" required>
+            <option value="">Selecione...</option>
+            <option value="Consultor 1">Consultor 1</option>
+            <option value="Consultor 2">Consultor 2</option>
+          </select>
+        </div>
+        <div class="md:col-span-2">
+          <label class="block text-xs font-semibold uppercase text-gray-600 mb-1">Razão Social *</label>
+          <input type="text" id="cliRazao" class="w-full border rounded p-2 text-sm" required />
+        </div>
+        <div class="md:col-span-2">
+          <label class="block text-xs font-semibold uppercase text-gray-600 mb-1">Nome Fantasia</label>
+          <input type="text" id="cliFantasia" class="w-full border rounded p-2 text-sm" />
+        </div>
+        <div class="md:col-span-2">
+          <label class="block text-xs font-semibold uppercase text-gray-600 mb-1">CNPJ</label>
+          <input type="text" id="cliCnpj" placeholder="00.000.000/0000-00" class="w-full border rounded p-2 text-sm" />
+        </div>
+
+        <div class="md:col-span-2 flex justify-end gap-2 pt-4 border-t">
+          <button type="button" onclick="fecharModalCliente()" class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold px-4 py-2 rounded text-sm">
+            Cancelar
+          </button>
+          <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-4 py-2 rounded text-sm">
+            Salvar Cliente
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script type="module" src="script.js"></script>
+</body>
+</html>
