@@ -279,28 +279,28 @@ function renderizarDescontos() {
       if (isPendente) {
         acoesHtml = `<span class="text-xs text-amber-700 font-bold">Aguardando aprovação</span>`;
       } else {
-        acoesHtml = `<span class="text-xs text-emerald-700 font-bold">Aprovado (Bloqueado)</span>`;
+        acoesHtml = `<span class="text-xs text-emerald-700 font-bold">Aprovado (Válido)</span>`;
       }
     }
 
-    // TRAVA CRUCIAL: Se o produto já estiver APROVADO, o consultor NÃO pode mexer no input (fica disabled).
-    // O consultor só mexe se for pendente dele ou se for adicionar um novo.
-    const inputDisabled = (perfilAtivo !== 'admin' && !isPendente) ? 'disabled bg-gray-100 cursor-not-allowed' : '';
+    // Exibe o valor oficial aprovado ou a sugestão pendente dependendo da regra
+    const valorExibido = (isPendente && perfilAtivo !== 'admin') ? (prod.valorAntigo !== undefined ? prod.valorAntigo : prod.desconto) : prod.desconto;
 
     tr.innerHTML = `
       <td class="border border-gray-200 p-2 text-sm">
         ${prod.nome}
-        ${isPendente ? `<div class="text-[10px] text-amber-600 font-semibold">Sugestão pendente: ${prod.desconto}%</div>` : ''}
+        ${isPendente ? `<div class="text-[11px] text-amber-700 font-bold mt-1">⚠️ Sugestão pendente: <b>${prod.desconto}%</b> (Valor atual válido: ${prod.valorAntigo}%)</div>` : ''}
       </td>
       <td class="border border-gray-200 p-2 text-right">
-        <input type="number" step="0.01" value="${prod.desconto}" id="input-prod-${prod.id}" class="w-full bg-transparent border border-gray-300 rounded p-1 text-sm text-right outline-none font-mono ${inputDisabled}" />
+        <input type="number" step="0.01" value="${valorExibido}" id="input-prod-${prod.id}" class="w-full bg-transparent border border-gray-300 rounded p-1 text-sm text-right outline-none font-mono" />
       </td>
       <td class="border border-gray-200 p-2 text-center no-print">
-        ${perfilAtivo !== 'admin' && !isPendente ? `<span class="text-xs text-gray-400">Somente leitura</span>` : `
-          <div class="flex flex-col items-center gap-1">
-            ${acoesHtml}${perfilAtivo !== 'admin' ? (isPendente ? `<button onclick="enviarSugestao(${prod.id})" class="bg-blue-600 hover:bg-blue-700 text-white text-[10px] px-2 py-0.5 rounded font-semibold mt-1">Reenviar Sugestão</button>` : '') : `<button onclick="salvarAdminDireto(${prod.id})" class="bg-gray-700 hover:bg-gray-800 text-white text-[10px] px-2 py-0.5 rounded font-semibold mt-1">Atualizar</button>`}
-          </div>
-        `}
+        <div class="flex flex-col items-center gap-1">
+          ${acoesHtml}
+          ${perfilAtivo !== 'admin' ? 
+            (isPendente ? `<span class="text-[10px] text-amber-600 font-semibold">Em análise</span>` : `<button onclick="sugerirAlteracao(${prod.id})" class="bg-blue-600 hover:bg-blue-700 text-white text-[10px] px-2 py-0.5 rounded font-semibold mt-1">Sugerir Alteração</button>`) 
+            : `<button onclick="salvarAdminDireto(${prod.id})" class="bg-gray-700 hover:bg-gray-800 text-white text-[10px] px-2 py-0.5 rounded font-semibold mt-1">Atualizar</button>`}
+        </div>
       </td>
     `;
     tbody.appendChild(tr);
@@ -323,7 +323,8 @@ window.adicionarProduto = async function() {
     id: Date.now(), 
     nome, 
     desconto, 
-    status: statusInicial 
+    status: statusInicial,
+    valorAntigo: statusInicial === 'pendente' ? 0 : undefined
   });
 
   await setDoc(doc(db, "clientes", clienteAtual.id), { ...clienteAtual, descontos: novosDescontos });
@@ -332,7 +333,8 @@ window.adicionarProduto = async function() {
   document.getElementById('prodDesconto').value = '';
 };
 
-window.enviarSugestao = async function(id) {
+// Consultor sugere alteração sem apagar o valor aprovado anterior
+window.sugerirAlteracao = async function(id) {
   const inputEl = document.getElementById(`input-prod-${id}`);
   const novoValor = parseFloat(inputEl.value) || 0;
   
@@ -340,11 +342,18 @@ window.enviarSugestao = async function(id) {
   const prodIndex = novosDescontos.findIndex(p => p.id === id);
   
   if (prodIndex > -1) {
-    novosDescontos[prodIndex].desconto = novoValor;
-    novosDescontos[prodIndex].status = 'pendente';
+    const produto = novosDescontos[prodIndex];
+    
+    // Guarda o valor oficial atual se já não estiver guardado
+    if (produto.status !== 'pendente') {
+      produto.valorAntigo = produto.desconto;
+    }
+    
+    produto.desconto = novoValor; // Armazena a sugestão
+    produto.status = 'pendente';
 
     await setDoc(doc(db, "clientes", clienteAtual.id), { ...clienteAtual, descontos: novosDescontos });
-    alert('Sua sugestão de desconto foi enviada para aprovação do Administrador!');
+    alert('Sugestão de alteração enviada para o Administrador!');
   }
 };
 
@@ -360,6 +369,7 @@ window.salvarAdminDireto = async function(id) {
   if (prodIndex > -1) {
     novosDescontos[prodIndex].desconto = novoValor;
     novosDescontos[prodIndex].status = 'aprovado';
+    delete novosDescontos[prodIndex].valorAntigo;
 
     await setDoc(doc(db, "clientes", clienteAtual.id), { ...clienteAtual, descontos: novosDescontos });
     alert('Desconto atualizado com sucesso!');
@@ -373,6 +383,7 @@ window.aprovarProduto = async function(id) {
   const prod = novosDescontos.find(p => p.id === id);
   if (prod) {
     prod.status = 'aprovado';
+    delete prod.valorAntigo;
     await setDoc(doc(db, "clientes", clienteAtual.id), { ...clienteAtual, descontos: novosDescontos });
   }
 };
@@ -380,9 +391,21 @@ window.aprovarProduto = async function(id) {
 window.rejeitarProduto = async function(id) {
   if (perfilAtivo !== 'admin') return;
 
-  if (confirm('Deseja rejeitar esta sugestão?')) {
-    const novosDescontos = clienteAtual.descontos.filter(p => p.id !== id);
-    await setDoc(doc(db, "clientes", clienteAtual.id), { ...clienteAtual, descontos: novosDescontos });
+  const novosDescontos = [...clienteAtual.descontos];
+  const prodIndex = novosDescontos.findIndex(p => p.id === id);
+  
+  if (prodIndex > -1) {
+    const prod = novosDescontos[prodIndex];
+    // Se tinha valor antigo guardado, descarta a sugestão e volta para o valor original. Se era produto novo, remove.
+    if (prod.valorAntigo !== undefined) {
+      prod.desconto = prod.valorAntigo;
+      prod.status = 'aprovado';
+      delete prod.valorAntigo;
+      await setDoc(doc(db, "clientes", clienteAtual.id), { ...clienteAtual, descontos: novosDescontos });
+    } else {
+      const filtrados = novosDescontos.filter(p => p.id !== id);
+      await setDoc(doc(db, "clientes", clienteAtual.id), { ...clienteAtual, descontos: filtrados });
+    }
   }
 };
 
