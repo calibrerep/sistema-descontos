@@ -9,7 +9,7 @@ import {
   onSnapshot 
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 
-// SUAS CHAVES DO FIREBASE (Copiadas da sua tela)
+// SUAS CHAVES DO FIREBASE
 const firebaseConfig = {
   apiKey: "AIzaSyDmgjxM9qWJ5pb7J8zWnrnhO79mrXWLHCk",
   authDomain: "sistema-descontos.firebaseapp.com",
@@ -19,17 +19,14 @@ const firebaseConfig = {
   appId: "1:724705105102:web:6a3090a3be0d3302d4ac9f"
 };
 
-// Inicializando o Banco de Dados
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-// Variáveis de controle
 let clientes = [];
 let clienteAtual = null;
 let perfilAtivo = sessionStorage.getItem('usuarioLogado') || null;
 
-// ==================== LISTENER EM TEMPO REAL DO FIREBASE ====================
-// Fica escutando qualquer mudança na nuvem e atualiza a tela instantaneamente
+// ==================== LISTENER DO FIREBASE ====================
 onSnapshot(collection(db, "clientes"), (snapshot) => {
   clientes = [];
   snapshot.forEach((documento) => {
@@ -38,28 +35,45 @@ onSnapshot(collection(db, "clientes"), (snapshot) => {
 
   if (perfilAtivo) {
     window.filtrarClientes();
-    
-    // Se alguém mexer no cliente que está aberto na tela agora, atualiza os dados
     if (clienteAtual) {
       const atualizado = clientes.find(c => c.id === clienteAtual.id);
       if (atualizado) {
         clienteAtual = atualizado;
         renderizarDescontos();
       } else {
-        window.voltarParaClientes(); // Se alguém excluir o cliente, volta pra lista
+        window.voltarParaClientes();
       }
     }
   }
 });
 
-// Inicialização da Tela
 window.onload = () => {
   if (perfilAtivo) {
     window.entrarSistema(perfilAtivo);
   }
 };
 
-// ==================== SISTEMA DE ACESSO (LOGIN) ====================
+// ==================== SISTEMA DE ACESSO (LOGIN COM SENHA) ====================
+
+window.tentarLogin = function(perfil) {
+  const senhaDigitada = document.getElementById('senhaAcesso').value;
+  let senhaCorreta = '';
+
+  // ----------------------------------------------------
+  // SUAS SENHAS PERSONALIZADAS:
+  if (perfil === 'admin') senhaCorreta = 'calibre%99';
+  if (perfil === 'Consultor 1') senhaCorreta = 'Barra%99';
+  if (perfil === 'Consultor 2') senhaCorreta = 'Noroeste%99';
+  // ----------------------------------------------------
+
+  if (senhaDigitada === senhaCorreta) {
+    document.getElementById('senhaAcesso').value = ''; // Limpa o campo após acerto
+    window.entrarSistema(perfil);
+  } else {
+    alert('Senha incorreta! Tente novamente.');
+  }
+};
+
 window.entrarSistema = function(perfil) {
   perfilAtivo = perfil;
   sessionStorage.setItem('usuarioLogado', perfil);
@@ -74,6 +88,7 @@ window.entrarSistema = function(perfil) {
 window.sairSistema = function() {
   perfilAtivo = null;
   sessionStorage.removeItem('usuarioLogado');
+  document.getElementById('senhaAcesso').value = ''; // Limpa a senha por precaução
   
   document.getElementById('telaClientes').classList.add('hidden');
   document.getElementById('telaDescontos').classList.add('hidden');
@@ -121,7 +136,6 @@ window.filtrarClientes = function() {
            c.razao.toLowerCase().includes(termo) ||
            (c.cnpj && c.cnpj.includes(termo));
   });
-
   renderizarClientes(filtrados);
 };
 
@@ -152,7 +166,6 @@ window.abrirModalCliente = function(id = null) {
   } else {
     document.getElementById('modalTitulo').innerText = 'Cadastrar Novo Cliente';
   }
-
   document.getElementById('modalCliente').classList.remove('hidden');
 };
 
@@ -160,15 +173,10 @@ window.fecharModalCliente = function() {
   document.getElementById('modalCliente').classList.add('hidden');
 };
 
-// SALVAR NO FIREBASE
 window.salvarCliente = async function(e) {
   e.preventDefault();
   const idAtual = document.getElementById('cliId').value;
-  
-  // Se for cliente novo, cria um ID aleatório, senão usa o ID existente
   const idDocumento = idAtual ? idAtual : Date.now().toString(); 
-  
-  // Resgata os descontos antigos caso seja uma edição
   const descontosAntigos = idAtual ? clientes.find(c => c.id === idAtual)?.descontos || [] : [];
 
   const dados = {
@@ -181,7 +189,6 @@ window.salvarCliente = async function(e) {
   };
 
   try {
-    // Comando para gravar no Firebase
     await setDoc(doc(db, "clientes", idDocumento), dados);
     window.fecharModalCliente();
   } catch (error) {
@@ -211,7 +218,6 @@ window.abrirTabelaDescontos = function(clienteId) {
   document.getElementById('detalheConsultor').innerText = `Atendido por: ${clienteAtual.consultor}`;
 
   renderizarDescontos();
-
   document.getElementById('telaClientes').classList.add('hidden');
   document.getElementById('telaDescontos').classList.remove('hidden');
 };
@@ -260,10 +266,8 @@ window.adicionarProduto = async function() {
   const novosDescontos = [...(clienteAtual.descontos || [])];
   novosDescontos.push({ id: Date.now(), nome, desconto });
 
-  // Salva a alteração direto no Firebase
   await setDoc(doc(db, "clientes", clienteAtual.id), { ...clienteAtual, descontos: novosDescontos });
-
-  document.getElementById('prodNome').value = '';
+  document.getElementById('prodNome5').value = '';
   document.getElementById('prodDesconto').value = '';
 };
 
