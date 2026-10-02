@@ -97,7 +97,6 @@ function renderizarClientes(lista) {
   }
 
   lista.forEach(cli => {
-    // Conta se há pendências de aprovação para este cliente
     const temPendencia = cli.descontos && cli.descontos.some(p => p.status === 'pendente');
     const badgePendencia = (perfilAtivo === 'admin' && temPendencia) ? '<span class="bg-amber-100 text-amber-800 text-[10px] px-2 py-0.5 rounded font-bold ml-1 animate-pulse">⚠️ Aprovar</span>' : '';
 
@@ -235,7 +234,6 @@ function renderizarDescontos() {
     const tr = document.createElement('tr');
     const isPendente = prod.status === 'pendente';
     
-    // Se for admin, pode aprovar. Se for consultor, o campo de input fica desativado se houver pendência ou ele edita gerando pendência.
     tr.className = isPendente ? 'bg-amber-50' : 'bg-white';
     
     let acoesHtml = '';
@@ -256,24 +254,30 @@ function renderizarDescontos() {
         `;
       }
     } else {
-      // Visão do consultor
       if (isPendente) {
-        acoesHtml = `<span class="text-xs text-amber-700 font-bold">Aguardando aprovação do Admin</span>`;
+        acoesHtml = `<span class="text-xs text-amber-700 font-bold">Aguardando aprovação</span>`;
       } else {
         acoesHtml = `<button onclick="window.excluirProduto(${prod.id})" class="text-red-600 hover:text-red-800 text-xs font-semibold">Excluir</button>`;
       }
     }
 
+    // Se for consultor e já estiver pendente, travamos o input para evitar edição em cima de sugestão pendente
+    const inputDisabled = (isPendente && perfilAtivo !== 'admin') ? 'disabled bg-gray-100' : '';
+
     tr.innerHTML = `
       <td class="border border-gray-200 p-2 text-sm">
         ${prod.nome}
-        ${isPendente ? `<div class="text-[10px] text-amber-600 font-semibold">Sugestão pendente: ${prod.desconto}%</div>` : ''}
+        ${isPendente ? `<div class="text-[10px] text-amber-600 font-semibold">Sugestão: ${prod.desconto}%</div>` : ''}
       </td>
       <td class="border border-gray-200 p-2 text-right">
-        <input type="number" step="0.01" value="${prod.desconto}" onchange="sugerirAtualizacaoProduto(${prod.id}, this.value)" class="w-full bg-transparent border-b border-transparent focus:border-blue-500 p-1 text-sm text-right outline-none font-mono" ${isPendente && perfilAtivo !== 'admin' ? 'disabled' : ''} />
+        <input type="number" step="0.01" value="${prod.desconto}" id="input-prod-${prod.id}" class="w-full bg-transparent border border-gray-300 rounded p-1 text-sm text-right outline-none font-mono ${inputDisabled}" />
       </td>
       <td class="border border-gray-200 p-2 text-center no-print">
-        ${acoesHtml}
+        ${isPendente && perfilAtivo !== 'admin' ? acoesHtml : `
+          <div class="flex flex-col items-center gap-1">
+            ${acoesHtml}${perfilAtivo !== 'admin' ? `<button onclick="enviarSugestao(${prod.id})" class="bg-blue-600 hover:bg-blue-700 text-white text-[10px] px-2 py-0.5 rounded font-semibold mt-1">Enviar Sugestão</button>` : `<button onclick="salvarAdminDireto(${prod.id})" class="bg-gray-700 hover:bg-gray-800 text-white text-[10px] px-2 py-0.5 rounded font-semibold mt-1">Atualizar</button>`}
+          </div>
+        `}
       </td>
     `;
     tbody.appendChild(tr);
@@ -290,8 +294,6 @@ window.adicionarProduto = async function() {
   }
 
   const novosDescontos = [...(clienteAtual.descontos || [])];
-  
-  // Se quem criou foi o admin, já entra aprovado. Se foi consultor, entra como pendente.
   const statusInicial = perfilAtivo === 'admin' ? 'aprovado' : 'pendente';
 
   novosDescontos.push({ 
@@ -307,24 +309,37 @@ window.adicionarProduto = async function() {
   document.getElementById('prodDesconto').value = '';
 };
 
-// Quando alguém altera o valor de um produto existente
-window.sugerirAtualizacaoProduto = async function(id, novoValor) {
-  const valorNum = parseFloat(novoValor) || 0;
+// Quando o consultor altera o valor e clica em "Enviar Sugestão"
+window.enviarSugestao = async function(id) {
+  const inputEl = document.getElementById(`input-prod-${id}`);
+  const novoValor = parseFloat(inputEl.value) || 0;
+  
   const novosDescontos = [...clienteAtual.descontos];
   const prodIndex = novosDescontos.findIndex(p => p.id === id);
   
   if (prodIndex > -1) {
-    novosDescontos[prodIndex].desconto = valorNum;
-    
-    // Se o admin alterou direto, continua aprovado. Se o consultor alterou, vira pendente de aprovação!
-    if (perfilAtivo !== 'admin') {
-      novosDescontos[prodIndex].status = 'pendente';
-      alert('Sua alteração de desconto foi enviada como sugestão e aguarda aprovação do Administrador.');
-    } else {
-      novosDescontos[prodIndex].status = 'aprovado';
-    }
+    novosDescontos[prodIndex].desconto = novoValor;
+    novosDescontos[prodIndex].status = 'pendente';
 
     await setDoc(doc(db, "clientes", clienteAtual.id), { ...clienteAtual, descontos: novosDescontos });
+    alert('Sua sugestão de desconto foi enviada para aprovação do Administrador!');
+  }
+};
+
+// Quando o admin edita direto
+window.salvarAdminDireto = async function(id) {
+  const inputEl = document.getElementById(`input-prod-${id}`);
+  const novoValor = parseFloat(inputEl.value) || 0;
+  
+  const novosDescontos = [...clienteAtual.descontos];
+  const prodIndex = novosDescontos.findIndex(p => p.id === id);
+  
+  if (prodIndex > -1) {
+    novosDescontos[prodIndex].desconto = novoValor;
+    novosDescontos[prodIndex].status = 'aprovado';
+
+    await setDoc(doc(db, "clientes", clienteAtual.id), { ...clienteAtual, descontos: novosDescontos });
+    alert('Desconto atualizado com sucesso!');
   }
 };
 
@@ -338,8 +353,7 @@ window.aprovarProduto = async function(id) {
 };
 
 window.rejeitarProduto = async function(id) {
-  if (confirm('Deseja rejeitar esta sugestão/produto?')) {
-    // Se for um produto pendente novo, removemos. Se for alteração, poderíamos reverter, mas remover o item pendente resolve.
+  if (confirm('Deseja rejeitar esta sugestão?')) {
     const novosDescontos = clienteAtual.descontos.filter(p => p.id !== id);
     await setDoc(doc(db, "clientes", clienteAtual.id), { ...clienteAtual, descontos: novosDescontos });
   }
