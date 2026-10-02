@@ -74,6 +74,11 @@ window.entrarSistema = function(perfil) {
   document.getElementById('telaLogin').classList.add('hidden');
   document.getElementById('telaClientes').classList.remove('hidden');
   
+  const btnNovoCliente = document.getElementById('btnNovoCliente');
+  if (btnNovoCliente) {
+    btnNovoCliente.style.display = perfil === 'admin' ? 'inline-flex' : 'none';
+  }
+
   window.filtrarClientes();
 };
 
@@ -102,6 +107,18 @@ function renderizarClientes(lista) {
 
     const tr = document.createElement('tr');
     tr.className = "border-b hover:bg-gray-50 text-sm";
+    
+    let acoesHtml = `
+      <button onclick="abrirTabelaDescontos('${cli.id}')" class="bg-emerald-100 hover:bg-emerald-200 text-emerald-800 text-xs px-2 py-1 rounded font-semibold">📋 Descontos</button>
+    `;
+
+    if (perfilAtivo === 'admin') {
+      acoesHtml += `
+        <button onclick="abrirModalCliente('${cli.id}')" class="bg-blue-100 hover:bg-blue-200 text-blue-800 text-xs px-2 py-1 rounded font-semibold ml-1">✏️ Editar</button>
+        <button onclick="excluirCliente('${cli.id}')" class="bg-red-100 hover:bg-red-200 text-red-800 text-xs px-2 py-1 rounded font-semibold ml-1">🗑️</button>
+      `;
+    }
+
     tr.innerHTML = `
       <td class="p-3 font-semibold text-blue-600">${cli.codigo}</td>
       <td class="p-3">
@@ -111,10 +128,8 @@ function renderizarClientes(lista) {
       <td class="p-3">
         <span class="bg-gray-100 text-gray-800 text-xs px-2 py-1 rounded border">${cli.consultor}</span>
       </td>
-      <td class="p-3 text-center space-x-2">
-        <button onclick="abrirTabelaDescontos('${cli.id}')" class="bg-emerald-100 hover:bg-emerald-200 text-emerald-800 text-xs px-2 py-1 rounded font-semibold">📋 Descontos</button>
-        <button onclick="abrirModalCliente('${cli.id}')" class="bg-blue-100 hover:bg-blue-200 text-blue-800 text-xs px-2 py-1 rounded font-semibold">✏️ Editar</button>
-        ${perfilAtivo === 'admin' ? `<button onclick="excluirCliente('${cli.id}')" class="bg-red-100 hover:bg-red-200 text-red-800 text-xs px-2 py-1 rounded font-semibold">🗑️</button>` : ''}
+      <td class="p-3 text-center">
+        ${acoesHtml}
       </td>
     `;
     tbody.appendChild(tr);
@@ -134,16 +149,16 @@ window.filtrarClientes = function() {
 };
 
 window.abrirModalCliente = function(id = null) {
+  if (perfilAtivo !== 'admin') {
+    alert('Acesso negado. Apenas o Administrador pode cadastrar ou editar clientes.');
+    return;
+  }
+
   document.getElementById('formCliente').reset();
   document.getElementById('cliId').value = '';
 
   const selectConsultor = document.getElementById('cliConsultor');
-  if (perfilAtivo !== 'admin') {
-    selectConsultor.value = perfilAtivo;
-    selectConsultor.disabled = true;
-  } else {
-    selectConsultor.disabled = false;
-  }
+  selectConsultor.disabled = false;
 
   if (id) {
     const cli = clientes.find(c => c.id === id);
@@ -168,6 +183,8 @@ window.fecharModalCliente = function() {
 
 window.salvarCliente = async function(e) {
   e.preventDefault();
+  if (perfilAtivo !== 'admin') return;
+
   const idAtual = document.getElementById('cliId').value;
   const idDocumento = idAtual ? idAtual : Date.now().toString(); 
   const descontosAntigos = idAtual ? clientes.find(c => c.id === idAtual)?.descontos || [] : [];
@@ -190,6 +207,11 @@ window.salvarCliente = async function(e) {
 };
 
 window.excluirCliente = async function(id) {
+  if (perfilAtivo !== 'admin') {
+    alert('Acesso negado.');
+    return;
+  }
+
   if (confirm("Tem certeza que deseja apagar este cliente e sua tabela de descontos? Essa ação é irreversível na nuvem.")) {
     try {
       await deleteDoc(doc(db, "clientes", id));
@@ -257,25 +279,26 @@ function renderizarDescontos() {
       if (isPendente) {
         acoesHtml = `<span class="text-xs text-amber-700 font-bold">Aguardando aprovação</span>`;
       } else {
-        acoesHtml = `<button onclick="window.excluirProduto(${prod.id})" class="text-red-600 hover:text-red-800 text-xs font-semibold">Excluir</button>`;
+        acoesHtml = `<span class="text-xs text-emerald-700 font-bold">Aprovado (Bloqueado)</span>`;
       }
     }
 
-    // Se for consultor e já estiver pendente, travamos o input para evitar edição em cima de sugestão pendente
-    const inputDisabled = (isPendente && perfilAtivo !== 'admin') ? 'disabled bg-gray-100' : '';
+    // TRAVA CRUCIAL: Se o produto já estiver APROVADO, o consultor NÃO pode mexer no input (fica disabled).
+    // O consultor só mexe se for pendente dele ou se for adicionar um novo.
+    const inputDisabled = (perfilAtivo !== 'admin' && !isPendente) ? 'disabled bg-gray-100 cursor-not-allowed' : '';
 
     tr.innerHTML = `
       <td class="border border-gray-200 p-2 text-sm">
         ${prod.nome}
-        ${isPendente ? `<div class="text-[10px] text-amber-600 font-semibold">Sugestão: ${prod.desconto}%</div>` : ''}
+        ${isPendente ? `<div class="text-[10px] text-amber-600 font-semibold">Sugestão pendente: ${prod.desconto}%</div>` : ''}
       </td>
       <td class="border border-gray-200 p-2 text-right">
         <input type="number" step="0.01" value="${prod.desconto}" id="input-prod-${prod.id}" class="w-full bg-transparent border border-gray-300 rounded p-1 text-sm text-right outline-none font-mono ${inputDisabled}" />
       </td>
       <td class="border border-gray-200 p-2 text-center no-print">
-        ${isPendente && perfilAtivo !== 'admin' ? acoesHtml : `
+        ${perfilAtivo !== 'admin' && !isPendente ? `<span class="text-xs text-gray-400">Somente leitura</span>` : `
           <div class="flex flex-col items-center gap-1">
-            ${acoesHtml}${perfilAtivo !== 'admin' ? `<button onclick="enviarSugestao(${prod.id})" class="bg-blue-600 hover:bg-blue-700 text-white text-[10px] px-2 py-0.5 rounded font-semibold mt-1">Enviar Sugestão</button>` : `<button onclick="salvarAdminDireto(${prod.id})" class="bg-gray-700 hover:bg-gray-800 text-white text-[10px] px-2 py-0.5 rounded font-semibold mt-1">Atualizar</button>`}
+            ${acoesHtml}${perfilAtivo !== 'admin' ? (isPendente ? `<button onclick="enviarSugestao(${prod.id})" class="bg-blue-600 hover:bg-blue-700 text-white text-[10px] px-2 py-0.5 rounded font-semibold mt-1">Reenviar Sugestão</button>` : '') : `<button onclick="salvarAdminDireto(${prod.id})" class="bg-gray-700 hover:bg-gray-800 text-white text-[10px] px-2 py-0.5 rounded font-semibold mt-1">Atualizar</button>`}
           </div>
         `}
       </td>
@@ -309,7 +332,6 @@ window.adicionarProduto = async function() {
   document.getElementById('prodDesconto').value = '';
 };
 
-// Quando o consultor altera o valor e clica em "Enviar Sugestão"
 window.enviarSugestao = async function(id) {
   const inputEl = document.getElementById(`input-prod-${id}`);
   const novoValor = parseFloat(inputEl.value) || 0;
@@ -326,8 +348,9 @@ window.enviarSugestao = async function(id) {
   }
 };
 
-// Quando o admin edita direto
 window.salvarAdminDireto = async function(id) {
+  if (perfilAtivo !== 'admin') return;
+
   const inputEl = document.getElementById(`input-prod-${id}`);
   const novoValor = parseFloat(inputEl.value) || 0;
   
@@ -344,6 +367,8 @@ window.salvarAdminDireto = async function(id) {
 };
 
 window.aprovarProduto = async function(id) {
+  if (perfilAtivo !== 'admin') return;
+
   const novosDescontos = [...clienteAtual.descontos];
   const prod = novosDescontos.find(p => p.id === id);
   if (prod) {
@@ -353,6 +378,8 @@ window.aprovarProduto = async function(id) {
 };
 
 window.rejeitarProduto = async function(id) {
+  if (perfilAtivo !== 'admin') return;
+
   if (confirm('Deseja rejeitar esta sugestão?')) {
     const novosDescontos = clienteAtual.descontos.filter(p => p.id !== id);
     await setDoc(doc(db, "clientes", clienteAtual.id), { ...clienteAtual, descontos: novosDescontos });
@@ -360,6 +387,11 @@ window.rejeitarProduto = async function(id) {
 };
 
 window.excluirProduto = async function(id) {
+  if (perfilAtivo !== 'admin') {
+    alert('Apenas o Administrador pode excluir produtos da tabela.');
+    return;
+  }
+
   if (confirm('Remover este produto?')) {
     const novosDescontos = clienteAtual.descontos.filter(p => p.id !== id);
     await setDoc(doc(db, "clientes", clienteAtual.id), { ...clienteAtual, descontos: novosDescontos });
