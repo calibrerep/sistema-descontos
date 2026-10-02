@@ -17,7 +17,6 @@
         <h1 class="text-2xl font-bold text-gray-900 mb-2">Acesso ao Sistema</h1>
         <p class="text-sm text-gray-500 mb-6">Selecione o seu perfil e digite a senha.</p>
         
-        <!-- CAMPO DE SENHA ADICIONADO AQUI -->
         <div class="mb-4">
           <input type="password" id="senhaAcesso" placeholder="Digite sua senha..." class="w-full border rounded p-3 text-center text-lg focus:ring-2 focus:ring-blue-500 outline-none" />
         </div>
@@ -100,6 +99,8 @@
 
       <section class="bg-white p-6 rounded-lg shadow space-y-4">
         <h2 class="text-xl font-bold text-gray-800 border-b pb-2">Planilha de Descontos</h2>
+        
+        <!-- Formulário para sugerir produto/desconto -->
         <div class="no-print grid grid-cols-1 md:grid-cols-5 gap-3 bg-gray-50 p-4 rounded border">
           <div class="md:col-span-2">
             <label class="block text-xs font-semibold uppercase text-gray-600 mb-1">Produto / Referência</label>
@@ -111,7 +112,7 @@
           </div>
           <div class="flex items-end">
             <button onclick="adicionarProduto()" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2 px-4 rounded text-sm">
-              + Adicionar
+              + Sugerir
             </button>
           </div>
         </div>
@@ -122,7 +123,7 @@
               <tr class="bg-gray-100 text-gray-700 uppercase text-xs">
                 <th class="border border-gray-200 p-3">Produto</th>
                 <th class="border border-gray-200 p-3 w-48 text-right">Desconto (%)</th>
-                <th class="border border-gray-200 p-3 w-32 text-center no-print">Ações</th>
+                <th class="border border-gray-200 p-3 w-48 text-center no-print">Status / Ações</th>
               </tr>
             </thead>
             <tbody id="tabelaDescontosCorpo"></tbody>
