@@ -39,11 +39,13 @@ onAuthStateChanged(auth, (user) => {
     
     // VINCULAÇÃO EXATA DE CADA E-MAIL AO SEU PERFIL:
     if (email === 'calibrerep@gmail.com') {
-      perfilAtivo = 'admin'; // Seu e-mail principal como Administrador
-    } else if (email === 'raul.fariascosta1993@gmail.com') {
-      perfilAtivo = 'Consultor 1'; // E-mail do Raul como Consultor 1
+      perfilAtivo = 'admin';
+    } else if (email === 'mezavila@mezavila.com') {
+      perfilAtivo = 'Consultor 1';
+    } else if (email === 'guilhermerepcalibre@gmail.com') {
+      perfilAtivo = 'Consultor 2';
     } else {
-      perfilAtivo = 'Consultor 1'; // Padrão de segurança
+      perfilAtivo = 'Consultor 1'; // Padrão de segurança para e-mails desconhecidos
     }
 
     entrarSistemaInterface(perfilAtivo);
