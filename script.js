@@ -37,13 +37,13 @@ onAuthStateChanged(auth, (user) => {
   if (user) {
     const email = user.email.toLowerCase();
     
-    // DEFINA AQUI QUEM É O ADMIN PELO E-MAIL:
+    // VINCULAÇÃO EXATA DE CADA E-MAIL AO SEU PERFIL:
     if (email === 'calibrerep@gmail.com') {
-      perfilAtivo = 'admin';
+      perfilAtivo = 'admin'; // Seu e-mail principal como Administrador
     } else if (email === 'raul.fariascosta1993@gmail.com') {
-      perfilAtivo = 'Consultor 1'; // Ou Consultor 2, como preferir
+      perfilAtivo = 'Consultor 1'; // E-mail do Raul como Consultor 1
     } else {
-      perfilAtivo = 'Consultor 1'; // Padrão de segurança para novos
+      perfilAtivo = 'Consultor 1'; // Padrão de segurança
     }
 
     entrarSistemaInterface(perfilAtivo);
