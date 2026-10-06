@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Sistema de Gestão de Clientes & Descontos</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body class="bg-gray-100 font-sans text-gray-800 p-4 md:p-8">
@@ -91,7 +92,15 @@
             <span id="detalheConsultor" class="font-bold text-emerald-700"></span>
           </div>
         </div>
-        <div class="no-print flex gap-2">
+    <div class="no-print flex gap-2">
+          <!-- Input oculto para selecionar o ficheiro Excel -->
+          <input type="file" id="inputExcel" accept=".xlsx, .xls" class="hidden" onchange="processarExcel(event)" />
+          
+          <!-- Botão visível apenas para o Administrador -->
+          <button id="btnImportarExcel" onclick="document.getElementById('inputExcel').click()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded text-sm font-semibold flex items-center gap-1" style="display: none;">
+            ⬆️️ Importar Excel
+          </button>
+
           <button onclick="window.print()" class="bg-gray-700 hover:bg-gray-800 text-white px-4 py-2 rounded text-sm font-semibold flex items-center gap-1">
             🖨️ Imprimir / PDF
           </button>

@@ -302,6 +302,12 @@ window.abrirTabelaDescontos = function(clienteId) {
   document.getElementById('detalheCnpj').innerText = clienteAtual.cnpj ? `CNPJ: ${clienteAtual.cnpj}` : '';
   document.getElementById('detalheConsultor').innerText = `Atendido por: ${clienteAtual.consultor}`;
 
+  // TRAVA DE SEGURANÇA: Mostra o botão de importar Excel apenas para o Admin
+  const btnImportarExcel = document.getElementById('btnImportarExcel');
+  if (btnImportarExcel) {
+    btnImportarExcel.style.display = perfilAtivo === 'admin' ? 'inline-flex' : 'none';
+  }
+
   renderizarDescontos();
   document.getElementById('telaClientes').classList.add('hidden');
   document.getElementById('telaDescontos').classList.remove('hidden');
@@ -511,4 +517,87 @@ window.excluirProduto = async function(id) {
     const novosDescontos = clienteAtual.descontos.filter(p => p.id !== id);
     await setDoc(doc(db, "clientes", clienteAtual.id), { ...clienteAtual, descontos: novosDescontos });
   }
+};
+
+// ==================== IMPORTAÇÃO DE EXCEL ====================
+window.processarExcel = async function(event) {
+  if (perfilAtivo !== 'admin') return; // Segurança dupla
+  
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = async function(e) {
+    try {
+      const data = new Uint8Array(e.target.result);
+      // Lê o ficheiro Excel
+      const workbook = XLSX.read(data, { type: 'array' });
+      
+      // Pega na primeira folha (aba) do Excel
+      const firstSheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[firstSheetName];
+      
+      // Converte as linhas do Excel para formato JSON (lista de objetos)
+      const json = XLSX.utils.sheet_to_json(worksheet);
+      
+      if (json.length === 0) {
+        alert("O ficheiro Excel está vazio ou com formato inválido.");
+        event.target.value = ''; // Limpa o input
+        return;
+      }
+
+      let adicionados = 0;
+      const novosDescontos = [...(clienteAtual.descontos || [])];
+
+      json.forEach((linha, index) => {
+        // Analisa o cabeçalho das colunas dinamicamente
+        const chaves = Object.keys(linha);
+        let nomeProduto = null;
+        let valorDesconto = null;
+
+        chaves.forEach(chave => {
+          const chaveLower = chave.toLowerCase().trim();
+          // Se a coluna tiver no nome: produto, referencia ou nome
+          if (chaveLower.includes('produto') || chaveLower.includes('referencia') || chaveLower.includes('nome')) {
+            nomeProduto = String(linha[chave]).trim();
+          }
+          // Se a coluna tiver no nome: desconto, max, ou %
+          if (chaveLower.includes('desconto') || chaveLower.includes('max') || chaveLower.includes('%')) {
+            valorDesconto = parseFloat(linha[chave]);
+          }
+        });
+
+        // Se encontrou um produto e um desconto válido na linha
+        if (nomeProduto && !isNaN(valorDesconto)) {
+          // Verifica se já existe para não adicionar produtos duplicados
+          const jaExiste = novosDescontos.some(p => p.nome.toLowerCase() === nomeProduto.toLowerCase());
+          if (!jaExiste) {
+            novosDescontos.push({
+              id: Date.now() + index, // Garante um ID único
+              nome: nomeProduto,
+              desconto: valorDesconto,
+              status: 'aprovado', // Já entra como aprovado, pois foi o Admin a inserir
+              valorAntigo: null
+            });
+            adicionados++;
+          }
+        }
+      });
+
+      // Grava tudo na base de dados se houver novos produtos
+      if (adicionados > 0) {
+        await setDoc(doc(db, "clientes", clienteAtual.id), { ...clienteAtual, descontos: novosDescontos });
+        alert(`Importação concluída com sucesso! ${adicionados} novo(s) produto(s) adicionado(s) à tabela.`);
+      } else {
+        alert("Nenhum produto novo válido foi encontrado, ou todos já estavam registados nesta tabela.");
+      }
+    } catch (erro) {
+      alert("Erro ao processar o ficheiro Excel: " + erro.message);
+    }
+    
+    // Limpa o ficheiro do botão, permitindo importar o mesmo ficheiro novamente se necessário
+    event.target.value = '';
+  };
+  
+  reader.readAsArrayBuffer(file);
 };
