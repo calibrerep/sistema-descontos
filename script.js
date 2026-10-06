@@ -45,7 +45,8 @@ onAuthStateChanged(auth, (user) => {
     } else if (email === 'guilhermerepcalibre@gmail.com') {
       perfilAtivo = 'Consultor 2';
     } else {
-      perfilAtivo = 'Consultor 1'; // Padrão de segurança para e-mails desconhecidos
+      // Se alguém entrar com outro e-mail que não está na lista acima, fica bloqueado de ver os outros
+      perfilAtivo = 'Sem Acesso'; 
     }
 
     entrarSistemaInterface(perfilAtivo);
