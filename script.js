@@ -37,7 +37,6 @@ onAuthStateChanged(auth, (user) => {
   if (user) {
     const email = user.email.toLowerCase();
     
-    // VINCULAÇÃO EXATA DE CADA E-MAIL AO SEU PERFIL:
     if (email === 'calibrerep@gmail.com') {
       perfilAtivo = 'admin';
     } else if (email === 'mezavila@mezavila.com') {
@@ -45,7 +44,6 @@ onAuthStateChanged(auth, (user) => {
     } else if (email === 'guilhermerepcalibre@gmail.com') {
       perfilAtivo = 'Consultor 2';
     } else {
-      // Se alguém entrar com outro e-mail que não está na lista acima, fica bloqueado de ver os outros
       perfilAtivo = 'Sem Acesso'; 
     }
 
@@ -77,7 +75,6 @@ onSnapshot(collection(db, "clientes"), (snapshot) => {
   }
 });
 
-// ==================== FUNÇÃO DE LOGIN OFICIAL ====================
 window.fazerLogin = async function() {
   const emailInput = document.getElementById('loginEmail').value.trim();
   const senhaInput = document.getElementById('loginSenha').value;
@@ -89,9 +86,8 @@ window.fazerLogin = async function() {
 
   try {
     await signInWithEmailAndPassword(auth, emailInput, senhaInput);
-    // O onAuthStateChanged vai capturar o sucesso e abrir o sistema automaticamente
   } catch (error) {
-    alert('Erro ao entrar: Verifique suas credenciais. (' + error.message + ')');
+    alert('Erro ao entrar: Verifique as suas credenciais. (' + error.message + ')');
   }
 };
 
@@ -108,10 +104,12 @@ function entrarSistemaInterface(perfil) {
   document.getElementById('telaLogin').classList.add('hidden');
   document.getElementById('telaClientes').classList.remove('hidden');
   
+  // Controlo de visibilidade de botões (Apenas Admin vê Novo Cliente e Backup)
   const btnNovoCliente = document.getElementById('btnNovoCliente');
-  if (btnNovoCliente) {
-    btnNovoCliente.style.display = perfil === 'admin' ? 'inline-flex' : 'none';
-  }
+  const btnBackup = document.getElementById('btnBackup');
+  
+  if (btnNovoCliente) btnNovoCliente.style.display = perfil === 'admin' ? 'inline-flex' : 'none';
+  if (btnBackup) btnBackup.style.display = perfil === 'admin' ? 'inline-flex' : 'none';
 
   window.filtrarClientes();
 }
@@ -125,6 +123,23 @@ function sairSistemaInterface() {
   if (emailField) emailField.value = '';
   if (senhaField) senhaField.value = '';
 }
+
+// ==================== FUNÇÃO DE BACKUP ====================
+window.fazerBackup = function() {
+  if (perfilAtivo !== 'admin') {
+    alert('Acesso negado.');
+    return;
+  }
+  
+  // Converte a base de dados num ficheiro de texto JSON
+  const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(clientes, null, 2));
+  const link = document.createElement('a');
+  link.setAttribute("href", dataStr);
+  link.setAttribute("download", "Backup_Sistema_Descontos_" + new Date().toLocaleDateString('pt-BR').replace(/\//g, '-') + ".json");
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+};
 
 // ==================== GESTÃO DE CLIENTES ====================
 function renderizarClientes(lista) {
@@ -182,6 +197,10 @@ window.filtrarClientes = function() {
            c.razao.toLowerCase().includes(termo) ||
            (c.cnpj && c.cnpj.includes(termo));
   });
+
+  // NOVIDADE: ORDENAÇÃO ALFABÉTICA DOS CLIENTES PELA RAZÃO SOCIAL
+  filtrados.sort((a, b) => a.razao.localeCompare(b.razao));
+
   renderizarClientes(filtrados);
 };
 
@@ -223,15 +242,30 @@ window.salvarCliente = async function(e) {
   if (perfilAtivo !== 'admin') return;
 
   const idAtual = document.getElementById('cliId').value;
+  
+  const codigoDigitado = document.getElementById('cliCodigo').value.trim();
+  const cnpjDigitado = document.getElementById('cliCnpj').value.trim();
+
+  // NOVIDADE: BLOQUEIO DE CLIENTES DUPLICADOS
+  const clienteDuplicado = clientes.find(c => 
+    c.id !== idAtual && // Não compara com ele mesmo na hora de editar
+    (c.codigo.toLowerCase() === codigoDigitado.toLowerCase() || (cnpjDigitado && c.cnpj === cnpjDigitado))
+  );
+
+  if (clienteDuplicado) {
+    alert('Atenção: Já existe um cliente cadastrado com este Código ou CNPJ!');
+    return; // Para a execução e não salva
+  }
+
   const idDocumento = idAtual ? idAtual : Date.now().toString(); 
   const descontosAntigos = idAtual ? clientes.find(c => c.id === idAtual)?.descontos || [] : [];
 
   const dados = {
-    codigo: document.getElementById('cliCodigo').value.trim(),
+    codigo: codigoDigitado,
     consultor: document.getElementById('cliConsultor').value,
     razao: document.getElementById('cliRazao').value.trim(),
     fantasia: document.getElementById('cliFantasia').value.trim(),
-    cnpj: document.getElementById('cliCnpj').value.trim(),
+    cnpj: cnpjDigitado,
     descontos: descontosAntigos 
   };
 
@@ -289,7 +323,10 @@ function renderizarDescontos() {
     return;
   }
 
-  clienteAtual.descontos.forEach((prod) => {
+  // NOVIDADE: ORDENAÇÃO ALFABÉTICA DOS PRODUTOS
+  const descontosOrdenados = [...clienteAtual.descontos].sort((a, b) => a.nome.localeCompare(b.nome));
+
+  descontosOrdenados.forEach((prod) => {
     const tr = document.createElement('tr');
     const isPendente = prod.status === 'pendente';
     
@@ -320,12 +357,12 @@ function renderizarDescontos() {
       }
     }
 
-    const valorExibido = (isPendente && perfilAtivo !== 'admin') ? (prod.valorAntigo !== undefined ? prod.valorAntigo : prod.desconto) : prod.desconto;
+    const valorExibido = (isPendente && perfilAtivo !== 'admin') ? (prod.valorAntigo !== undefined && prod.valorAntigo !== null ? prod.valorAntigo : prod.desconto) : prod.desconto;
 
     tr.innerHTML = `
       <td class="border border-gray-200 p-2 text-sm">
         ${prod.nome}
-        ${isPendente ? `<div class="text-[11px] text-amber-700 font-bold mt-1">⚠️ Sugestão pendente: <b>${prod.desconto}%</b> (Valor atual válido: ${prod.valorAntigo}%)</div>` : ''}
+        ${isPendente ? `<div class="text-[11px] text-amber-700 font-bold mt-1">⚠️ Sugestão pendente: <b>${prod.desconto}%</b> (Valor atual válido: ${prod.valorAntigo !== null ? prod.valorAntigo : 'Nenhum'}%)</div>` : ''}
       </td>
       <td class="border border-gray-200 p-2 text-right">
         <input type="number" step="0.01" value="${valorExibido}" id="input-prod-${prod.id}" class="w-full bg-transparent border border-gray-300 rounded p-1 text-sm text-right outline-none font-mono" />
@@ -356,16 +393,22 @@ window.adicionarProduto = async function() {
     return;
   }
 
+  // NOVIDADE: BLOQUEIO DE PRODUTOS REPETIDOS
+  const jaExiste = (clienteAtual.descontos || []).some(p => p.nome.toLowerCase() === nome.toLowerCase());
+  if (jaExiste) {
+    alert('Atenção: Este produto ou referência já está cadastrado para este cliente!');
+    return;
+  }
+
   const novosDescontos = [...(clienteAtual.descontos || [])];
   const statusInicial = perfilAtivo === 'admin' ? 'aprovado' : 'pendente';
 
-  // CORREÇÃO: Utilização de null em vez de undefined
   novosDescontos.push({ 
     id: Date.now(), 
     nome, 
     desconto, 
     status: statusInicial,
-    valorAntigo: statusInicial === 'pendente' ? 0 : null 
+    valorAntigo: statusInicial === 'pendente' ? 0 : null
   });
 
   try {
@@ -393,8 +436,12 @@ window.sugerirAlteracao = async function(id) {
     produto.desconto = novoValor;
     produto.status = 'pendente';
 
-    await setDoc(doc(db, "clientes", clienteAtual.id), { ...clienteAtual, descontos: novosDescontos });
-    alert('Sugestão de alteração enviada para o Administrador!');
+    try {
+      await setDoc(doc(db, "clientes", clienteAtual.id), { ...clienteAtual, descontos: novosDescontos });
+      alert('Sugestão de alteração enviada para o Administrador!');
+    } catch (erro) {
+      alert("Ocorreu um erro ao gravar: " + erro.message);
+    }
   }
 };
 
@@ -411,10 +458,14 @@ window.salvarAdminDireto = async function(id) {
   if (prodIndex > -1) {
     novosDescontos[prodIndex].desconto = novoValor;
     novosDescontos[prodIndex].status = 'aprovado';
-    delete novosDescontos[prodIndex].valorAntigo;
+    novosDescontos[prodIndex].valorAntigo = null;
 
-    await setDoc(doc(db, "clientes", clienteAtual.id), { ...clienteAtual, descontos: novosDescontos });
-    alert('Desconto atualizado com sucesso!');
+    try {
+      await setDoc(doc(db, "clientes", clienteAtual.id), { ...clienteAtual, descontos: novosDescontos });
+      alert('Desconto atualizado com sucesso!');
+    } catch (erro) {
+      alert("Erro ao gravar: " + erro.message);
+    }
   }
 };
 
@@ -425,7 +476,7 @@ window.aprovarProduto = async function(id) {
   const prod = novosDescontos.find(p => p.id === id);
   if (prod) {
     prod.status = 'aprovado';
-    delete prod.valorAntigo;
+    prod.valorAntigo = null;
     await setDoc(doc(db, "clientes", clienteAtual.id), { ...clienteAtual, descontos: novosDescontos });
   }
 };
@@ -438,10 +489,10 @@ window.rejeitarProduto = async function(id) {
   
   if (prodIndex > -1) {
     const prod = novosDescontos[prodIndex];
-    if (prod.valorAntigo !== undefined) {
+    if (prod.valorAntigo !== null && prod.valorAntigo !== undefined) {
       prod.desconto = prod.valorAntigo;
       prod.status = 'aprovado';
-      delete prod.valorAntigo;
+      prod.valorAntigo = null;
       await setDoc(doc(db, "clientes", clienteAtual.id), { ...clienteAtual, descontos: novosDescontos });
     } else {
       const filtrados = novosDescontos.filter(p => p.id !== id);

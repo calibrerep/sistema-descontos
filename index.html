@@ -39,11 +39,15 @@
           <h1 class="text-2xl font-bold text-gray-900">Carteira de Clientes</h1>
           <p class="text-sm text-gray-500">Perfil ativo: <span id="nomePerfilAtivo" class="font-bold text-blue-600"></span></p>
         </div>
-        <div class="flex gap-2">
+       <div class="flex gap-2">
           <button onclick="sairSistema()" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold px-4 py-2 rounded text-sm">
-            Sair / Trocar Perfil
+            Sair
           </button>
-          <button onclick="abrirModalCliente()" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-4 py-2 rounded text-sm flex items-center gap-1">
+          <!-- NOVO BOTÃO DE BACKUP (Apenas Admin) -->
+          <button id="btnBackup" onclick="fazerBackup()" class="bg-purple-600 hover:bg-purple-700 text-white font-semibold px-4 py-2 rounded text-sm flex items-center gap-1" style="display: none;">
+            📥 Backup JSON
+          </button>
+          <button id="btnNovoCliente" onclick="abrirModalCliente()" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-4 py-2 rounded text-sm flex items-center gap-1" style="display: none;">
             ➕ Novo Cliente
           </button>
         </div>
