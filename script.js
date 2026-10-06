@@ -38,7 +38,7 @@ onAuthStateChanged(auth, (user) => {
     const email = user.email.toLowerCase();
     
     // DEFINA AQUI QUEM É O ADMIN PELO E-MAIL:
-    if (email === 'calibrerep@mail.com') {
+    if (email === 'calibrerep@gmail.com') {
       perfilAtivo = 'admin';
     } else if (email === 'raul.fariascosta1993@gmail.com') {
       perfilAtivo = 'Consultor 1'; // Ou Consultor 2, como preferir
