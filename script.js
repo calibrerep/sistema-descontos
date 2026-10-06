@@ -343,11 +343,7 @@ function renderizarDescontos() {
 window.adicionarProduto = async function() {
   const prodNome = document.getElementById('prodNome');
   const prodDesconto = document.getElementById('prodDesconto');
-  
-  if (!prodNome || !prodDesconto) {
-    alert('Erro interno: Campos não encontrados na tela.');
-    return;
-  }
+  if (!prodNome || !prodDesconto) return;
 
   const nome = prodNome.value.trim();
   const desconto = parseFloat(prodDesconto.value);
@@ -360,24 +356,21 @@ window.adicionarProduto = async function() {
   const novosDescontos = [...(clienteAtual.descontos || [])];
   const statusInicial = perfilAtivo === 'admin' ? 'aprovado' : 'pendente';
 
+  // CORREÇÃO: Utilização de null em vez de undefined
   novosDescontos.push({ 
     id: Date.now(), 
     nome, 
     desconto, 
     status: statusInicial,
-    valorAntigo: statusInicial === 'pendente' ? 0 : undefined
+    valorAntigo: statusInicial === 'pendente' ? 0 : null 
   });
 
   try {
-    // Tenta salvar no banco de dados
     await setDoc(doc(db, "clientes", clienteAtual.id), { ...clienteAtual, descontos: novosDescontos });
-    
-    // Se der certo, limpa os campos
     prodNome.value = '';
     prodDesconto.value = '';
   } catch (erro) {
-    // Se der erro de permissão ou segurança, mostra na tela!
-    alert("O Firebase bloqueou a ação! Erro: " + erro.message);
+    alert("Ocorreu um erro ao gravar: " + erro.message);
   }
 };
 
