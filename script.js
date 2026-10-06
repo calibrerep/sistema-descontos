@@ -104,7 +104,6 @@ function entrarSistemaInterface(perfil) {
   document.getElementById('telaLogin').classList.add('hidden');
   document.getElementById('telaClientes').classList.remove('hidden');
   
-  // Controlo de visibilidade de botões (Apenas Admin vê Novo Cliente e Backup)
   const btnNovoCliente = document.getElementById('btnNovoCliente');
   const btnBackup = document.getElementById('btnBackup');
   
@@ -124,14 +123,12 @@ function sairSistemaInterface() {
   if (senhaField) senhaField.value = '';
 }
 
-// ==================== FUNÇÃO DE BACKUP ====================
 window.fazerBackup = function() {
   if (perfilAtivo !== 'admin') {
     alert('Acesso negado.');
     return;
   }
   
-  // Converte a base de dados num ficheiro de texto JSON
   const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(clientes, null, 2));
   const link = document.createElement('a');
   link.setAttribute("href", dataStr);
@@ -198,23 +195,19 @@ window.filtrarClientes = function() {
            (c.cnpj && c.cnpj.includes(termo));
   });
 
-  // NOVIDADE: ORDENAÇÃO ALFABÉTICA DOS CLIENTES PELA RAZÃO SOCIAL
   filtrados.sort((a, b) => a.razao.localeCompare(b.razao));
-
   renderizarClientes(filtrados);
 };
 
 window.abrirModalCliente = function(id = null) {
   if (perfilAtivo !== 'admin') {
-    alert('Acesso negado. Apenas o Administrador pode cadastrar ou editar clientes.');
+    alert('Acesso negado.');
     return;
   }
 
   document.getElementById('formCliente').reset();
   document.getElementById('cliId').value = '';
-
-  const selectConsultor = document.getElementById('cliConsultor');
-  selectConsultor.disabled = false;
+  document.getElementById('cliConsultor').disabled = false;
 
   if (id) {
     const cli = clientes.find(c => c.id === id);
@@ -242,19 +235,17 @@ window.salvarCliente = async function(e) {
   if (perfilAtivo !== 'admin') return;
 
   const idAtual = document.getElementById('cliId').value;
-  
   const codigoDigitado = document.getElementById('cliCodigo').value.trim();
   const cnpjDigitado = document.getElementById('cliCnpj').value.trim();
 
-  // NOVIDADE: BLOQUEIO DE CLIENTES DUPLICADOS
   const clienteDuplicado = clientes.find(c => 
-    c.id !== idAtual && // Não compara com ele mesmo na hora de editar
+    c.id !== idAtual && 
     (c.codigo.toLowerCase() === codigoDigitado.toLowerCase() || (cnpjDigitado && c.cnpj === cnpjDigitado))
   );
 
   if (clienteDuplicado) {
-    alert('Atenção: Já existe um cliente cadastrado com este Código ou CNPJ!');
-    return; // Para a execução e não salva
+    alert('Atenção: Já existe um cliente com este Código ou CNPJ!');
+    return;
   }
 
   const idDocumento = idAtual ? idAtual : Date.now().toString(); 
@@ -273,17 +264,14 @@ window.salvarCliente = async function(e) {
     await setDoc(doc(db, "clientes", idDocumento), dados);
     window.fecharModalCliente();
   } catch (error) {
-    alert("Erro ao salvar no banco de dados: " + error);
+    alert("Erro ao salvar: " + error);
   }
 };
 
 window.excluirCliente = async function(id) {
-  if (perfilAtivo !== 'admin') {
-    alert('Acesso negado.');
-    return;
-  }
+  if (perfilAtivo !== 'admin') return;
 
-  if (confirm("Tem certeza que deseja apagar este cliente e sua tabela de descontos? Essa ação é irreversível na nuvem.")) {
+  if (confirm("Tem certeza que deseja apagar este cliente e sua tabela?")) {
     try {
       await deleteDoc(doc(db, "clientes", id));
     } catch (error) {
@@ -302,7 +290,6 @@ window.abrirTabelaDescontos = function(clienteId) {
   document.getElementById('detalheCnpj').innerText = clienteAtual.cnpj ? `CNPJ: ${clienteAtual.cnpj}` : '';
   document.getElementById('detalheConsultor').innerText = `Atendido por: ${clienteAtual.consultor}`;
 
-  // TRAVA DE SEGURANÇA: Mostra o botão de importar Excel apenas para o Admin
   const btnImportarExcel = document.getElementById('btnImportarExcel');
   if (btnImportarExcel) {
     btnImportarExcel.style.display = perfilAtivo === 'admin' ? 'inline-flex' : 'none';
@@ -325,11 +312,10 @@ function renderizarDescontos() {
   tbody.innerHTML = '';
 
   if (!clienteAtual.descontos || clienteAtual.descontos.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="3" class="p-4 text-center text-gray-500 text-sm">Nenhum produto/desconto cadastrado.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="4" class="p-4 text-center text-gray-500 text-sm">Nenhum produto/desconto cadastrado.</td></tr>`;
     return;
   }
 
-  // NOVIDADE: ORDENAÇÃO ALFABÉTICA DOS PRODUTOS
   const descontosOrdenados = [...clienteAtual.descontos].sort((a, b) => a.nome.localeCompare(b.nome));
 
   descontosOrdenados.forEach((prod) => {
@@ -337,7 +323,11 @@ function renderizarDescontos() {
     const isPendente = prod.status === 'pendente';
     
     tr.className = isPendente ? 'bg-amber-50' : 'bg-white';
-    
+
+    // Corrige a exibição caso estivesse gravado em decimal (ex: 0.26 vira 26)
+    const valPrazo = prod.desconto !== undefined && prod.desconto !== null ? (prod.desconto <= 1 ? prod.desconto * 100 : prod.desconto) : '';
+    const valVista = prod.descontoVista !== undefined && prod.descontoVista !== null ? (prod.descontoVista <= 1 ? prod.descontoVista * 100 : prod.descontoVista) : '';
+
     let acoesHtml = '';
     if (perfilAtivo === 'admin') {
       if (isPendente) {
@@ -356,28 +346,25 @@ function renderizarDescontos() {
         `;
       }
     } else {
-      if (isPendente) {
-        acoesHtml = `<span class="text-xs text-amber-700 font-bold">Aguardando aprovação</span>`;
-      } else {
-        acoesHtml = `<span class="text-xs text-emerald-700 font-bold">Aprovado (Válido)</span>`;
-      }
+      acoesHtml = isPendente ? `<span class="text-xs text-amber-700 font-bold">Em análise</span>` : `<span class="text-xs text-emerald-700 font-bold">Aprovado</span>`;
     }
 
-    const valorExibido = (isPendente && perfilAtivo !== 'admin') ? (prod.valorAntigo !== undefined && prod.valorAntigo !== null ? prod.valorAntigo : prod.desconto) : prod.desconto;
-
     tr.innerHTML = `
-      <td class="border border-gray-200 p-2 text-sm">
+      <td class="border border-gray-200 p-2 text-sm font-medium">
         ${prod.nome}
-        ${isPendente ? `<div class="text-[11px] text-amber-700 font-bold mt-1">⚠️ Sugestão pendente: <b>${prod.desconto}%</b> (Valor atual válido: ${prod.valorAntigo !== null ? prod.valorAntigo : 'Nenhum'}%)</div>` : ''}
+        ${isPendente ? `<div class="text-[11px] text-amber-700 font-bold mt-1">⚠️ Sugestão pendente</div>` : ''}
       </td>
       <td class="border border-gray-200 p-2 text-right">
-        <input type="number" step="0.01" value="${valorExibido}" id="input-prod-${prod.id}" class="w-full bg-transparent border border-gray-300 rounded p-1 text-sm text-right outline-none font-mono" />
+        <input type="number" step="0.1" value="${valPrazo}" id="input-prazo-${prod.id}" class="w-full bg-transparent border border-gray-300 rounded p-1 text-sm text-right outline-none font-mono" />
+      </td>
+      <td class="border border-gray-200 p-2 text-right">
+        <input type="number" step="0.1" value="${valVista}" id="input-vista-${prod.id}" class="w-full bg-transparent border border-gray-300 rounded p-1 text-sm text-right outline-none font-mono" />
       </td>
       <td class="border border-gray-200 p-2 text-center no-print">
         <div class="flex flex-col items-center gap-1">
           ${acoesHtml}
           ${perfilAtivo !== 'admin' ? 
-            (isPendente ? `<span class="text-[10px] text-amber-600 font-semibold">Em análise</span>` : `<button onclick="sugerirAlteracao(${prod.id})" class="bg-blue-600 hover:bg-blue-700 text-white text-[10px] px-2 py-0.5 rounded font-semibold mt-1">Sugerir Alteração</button>`) 
+            (!isPendente ? `<button onclick="sugerirAlteracao(${prod.id})" class="bg-blue-600 hover:bg-blue-700 text-white text-[10px] px-2 py-0.5 rounded font-semibold mt-1">Sugerir</button>` : '') 
             : `<button onclick="salvarAdminDireto(${prod.id})" class="bg-gray-700 hover:bg-gray-800 text-white text-[10px] px-2 py-0.5 rounded font-semibold mt-1">Atualizar</button>`}
         </div>
       </td>
@@ -389,20 +376,22 @@ function renderizarDescontos() {
 window.adicionarProduto = async function() {
   const prodNome = document.getElementById('prodNome');
   const prodDesconto = document.getElementById('prodDesconto');
+  const prodDescontoVista = document.getElementById('prodDescontoVista');
+  
   if (!prodNome || !prodDesconto) return;
 
   const nome = prodNome.value.trim();
   const desconto = parseFloat(prodDesconto.value);
+  const descontoVista = prodDescontoVista && prodDescontoVista.value ? parseFloat(prodDescontoVista.value) : 0;
 
   if (!nome || isNaN(desconto)) {
-    alert('Preencha o produto e o desconto.');
+    alert('Preencha o produto e o desconto a prazo.');
     return;
   }
 
-  // NOVIDADE: BLOQUEIO DE PRODUTOS REPETIDOS
   const jaExiste = (clienteAtual.descontos || []).some(p => p.nome.toLowerCase() === nome.toLowerCase());
   if (jaExiste) {
-    alert('Atenção: Este produto ou referência já está cadastrado para este cliente!');
+    alert('Atenção: Este produto já está cadastrado!');
     return;
   }
 
@@ -413,40 +402,42 @@ window.adicionarProduto = async function() {
     id: Date.now(), 
     nome, 
     desconto, 
+    descontoVista, 
     status: statusInicial,
-    valorAntigo: statusInicial === 'pendente' ? 0 : null
+    valorAntigo: null
   });
 
   try {
     await setDoc(doc(db, "clientes", clienteAtual.id), { ...clienteAtual, descontos: novosDescontos });
     prodNome.value = '';
     prodDesconto.value = '';
+    if (prodDescontoVista) prodDescontoVista.value = '';
   } catch (erro) {
-    alert("Ocorreu um erro ao gravar: " + erro.message);
+    alert("Erro ao gravar: " + erro.message);
   }
 };
 
 window.sugerirAlteracao = async function(id) {
-  const inputEl = document.getElementById(`input-prod-${id}`);
-  if (!inputEl) return;
-  const novoValor = parseFloat(inputEl.value) || 0;
+  const prazoEl = document.getElementById(`input-prazo-${id}`);
+  const vistaEl = document.getElementById(`input-vista-${id}`);
+  if (!prazoEl || !vistaEl) return;
+  
+  const novoPrazo = parseFloat(prazoEl.value) || 0;
+  const novoVista = parseFloat(vistaEl.value) || 0;
   
   const novosDescontos = [...clienteAtual.descontos];
   const prodIndex = novosDescontos.findIndex(p => p.id === id);
   
   if (prodIndex > -1) {
-    const produto = novosDescontos[prodIndex];
-    if (produto.status !== 'pendente') {
-      produto.valorAntigo = produto.desconto;
-    }
-    produto.desconto = novoValor;
-    produto.status = 'pendente';
+    novosDescontos[prodIndex].desconto = novoPrazo;
+    novosDescontos[prodIndex].descontoVista = novoVista;
+    novosDescontos[prodIndex].status = 'pendente';
 
     try {
       await setDoc(doc(db, "clientes", clienteAtual.id), { ...clienteAtual, descontos: novosDescontos });
-      alert('Sugestão de alteração enviada para o Administrador!');
+      alert('Sugestão enviada para o Administrador!');
     } catch (erro) {
-      alert("Ocorreu um erro ao gravar: " + erro.message);
+      alert("Erro ao gravar: " + erro.message);
     }
   }
 };
@@ -454,21 +445,25 @@ window.sugerirAlteracao = async function(id) {
 window.salvarAdminDireto = async function(id) {
   if (perfilAtivo !== 'admin') return;
 
-  const inputEl = document.getElementById(`input-prod-${id}`);
-  if (!inputEl) return;
-  const novoValor = parseFloat(inputEl.value) || 0;
+  const prazoEl = document.getElementById(`input-prazo-${id}`);
+  const vistaEl = document.getElementById(`input-vista-${id}`);
+  if (!prazoEl || !vistaEl) return;
+  
+  const novoPrazo = parseFloat(prazoEl.value) || 0;
+  const novoVista = parseFloat(vistaEl.value) || 0;
   
   const novosDescontos = [...clienteAtual.descontos];
   const prodIndex = novosDescontos.findIndex(p => p.id === id);
   
   if (prodIndex > -1) {
-    novosDescontos[prodIndex].desconto = novoValor;
+    novosDescontos[prodIndex].desconto = novoPrazo;
+    novosDescontos[prodIndex].descontoVista = novoVista;
     novosDescontos[prodIndex].status = 'aprovado';
     novosDescontos[prodIndex].valorAntigo = null;
 
     try {
       await setDoc(doc(db, "clientes", clienteAtual.id), { ...clienteAtual, descontos: novosDescontos });
-      alert('Desconto atualizado com sucesso!');
+      alert('Descontos atualizados com sucesso!');
     } catch (erro) {
       alert("Erro ao gravar: " + erro.message);
     }
@@ -491,27 +486,12 @@ window.rejeitarProduto = async function(id) {
   if (perfilAtivo !== 'admin') return;
 
   const novosDescontos = [...clienteAtual.descontos];
-  const prodIndex = novosDescontos.findIndex(p => p.id === id);
-  
-  if (prodIndex > -1) {
-    const prod = novosDescontos[prodIndex];
-    if (prod.valorAntigo !== null && prod.valorAntigo !== undefined) {
-      prod.desconto = prod.valorAntigo;
-      prod.status = 'aprovado';
-      prod.valorAntigo = null;
-      await setDoc(doc(db, "clientes", clienteAtual.id), { ...clienteAtual, descontos: novosDescontos });
-    } else {
-      const filtrados = novosDescontos.filter(p => p.id !== id);
-      await setDoc(doc(db, "clientes", clienteAtual.id), { ...clienteAtual, descontos: filtrados });
-    }
-  }
+  const filtrados = novosDescontos.filter(p => p.id !== id);
+  await setDoc(doc(db, "clientes", clienteAtual.id), { ...clienteAtual, descontos: filtrados });
 };
 
 window.excluirProduto = async function(id) {
-  if (perfilAtivo !== 'admin') {
-    alert('Apenas o Administrador pode excluir produtos da tabela.');
-    return;
-  }
+  if (perfilAtivo !== 'admin') return;
 
   if (confirm('Remover este produto?')) {
     const novosDescontos = clienteAtual.descontos.filter(p => p.id !== id);
@@ -521,7 +501,7 @@ window.excluirProduto = async function(id) {
 
 // ==================== IMPORTAÇÃO DE EXCEL ====================
 window.processarExcel = async function(event) {
-  if (perfilAtivo !== 'admin') return; // Segurança dupla
+  if (perfilAtivo !== 'admin') return;
   
   const file = event.target.files[0];
   if (!file) return;
@@ -530,19 +510,14 @@ window.processarExcel = async function(event) {
   reader.onload = async function(e) {
     try {
       const data = new Uint8Array(e.target.result);
-      // Lê o ficheiro Excel
       const workbook = XLSX.read(data, { type: 'array' });
-      
-      // Pega na primeira folha (aba) do Excel
       const firstSheetName = workbook.SheetNames[0];
       const worksheet = workbook.Sheets[firstSheetName];
-      
-      // Converte as linhas do Excel para formato JSON (lista de objetos)
       const json = XLSX.utils.sheet_to_json(worksheet);
       
       if (json.length === 0) {
-        alert("O ficheiro Excel está vazio ou com formato inválido.");
-        event.target.value = ''; // Limpa o input
+        alert("O ficheiro Excel está vazio.");
+        event.target.value = '';
         return;
       }
 
@@ -550,33 +525,37 @@ window.processarExcel = async function(event) {
       const novosDescontos = [...(clienteAtual.descontos || [])];
 
       json.forEach((linha, index) => {
-        // Analisa o cabeçalho das colunas dinamicamente
         const chaves = Object.keys(linha);
         let nomeProduto = null;
-        let valorDesconto = null;
+        let valorPrazo = 0;
+        let valorVista = 0;
 
         chaves.forEach(chave => {
           const chaveLower = chave.toLowerCase().trim();
-          // Se a coluna tiver no nome: produto, referencia ou nome
           if (chaveLower.includes('produto') || chaveLower.includes('referencia') || chaveLower.includes('nome')) {
             nomeProduto = String(linha[chave]).trim();
           }
-          // Se a coluna tiver no nome: desconto, max, ou %
-          if (chaveLower.includes('desconto') || chaveLower.includes('max') || chaveLower.includes('%')) {
-            valorDesconto = parseFloat(linha[chave]);
+          if (chaveLower.includes('prazo') || (chaveLower.includes('desconto') && !chaveLower.includes('vista'))) {
+            valorPrazo = parseFloat(linha[chave]) || 0;
+          }
+          if (chaveLower.includes('vista')) {
+            valorVista = parseFloat(linha[chave]) || 0;
           }
         });
 
-        // Se encontrou um produto e um desconto válido na linha
-        if (nomeProduto && !isNaN(valorDesconto)) {
-          // Verifica se já existe para não adicionar produtos duplicados
+        // Se veio em formato decimal antigo (ex: 0.26), converte para 26
+        if (valorPrazo > 0 && valorPrazo <= 1) valorPrazo = valorPrazo * 100;
+        if (valorVista > 0 && valorVista <= 1) valorVista = valorVista * 100;
+
+        if (nomeProduto) {
           const jaExiste = novosDescontos.some(p => p.nome.toLowerCase() === nomeProduto.toLowerCase());
           if (!jaExiste) {
             novosDescontos.push({
-              id: Date.now() + index, // Garante um ID único
+              id: Date.now() + index,
               nome: nomeProduto,
-              desconto: valorDesconto,
-              status: 'aprovado', // Já entra como aprovado, pois foi o Admin a inserir
+              desconto: valorPrazo,
+              descontoVista: valorVista,
+              status: 'aprovado',
               valorAntigo: null
             });
             adicionados++;
@@ -584,20 +563,16 @@ window.processarExcel = async function(event) {
         }
       });
 
-      // Grava tudo na base de dados se houver novos produtos
       if (adicionados > 0) {
         await setDoc(doc(db, "clientes", clienteAtual.id), { ...clienteAtual, descontos: novosDescontos });
-        alert(`Importação concluída com sucesso! ${adicionados} novo(s) produto(s) adicionado(s) à tabela.`);
+        alert(`Importação concluída! ${adicionados} produtos adicionados.`);
       } else {
-        alert("Nenhum produto novo válido foi encontrado, ou todos já estavam registados nesta tabela.");
+        alert("Nenhum produto novo encontrado ou todos já estavam cadastrados.");
       }
     } catch (erro) {
-      alert("Erro ao processar o ficheiro Excel: " + erro.message);
+      alert("Erro ao processar o Excel: " + erro.message);
     }
-    
-    // Limpa o ficheiro do botão, permitindo importar o mesmo ficheiro novamente se necessário
     event.target.value = '';
   };
-  
   reader.readAsArrayBuffer(file);
 };
