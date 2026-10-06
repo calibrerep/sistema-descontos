@@ -219,9 +219,13 @@ window.abrirModalCliente = function(id = null) {
       document.getElementById('cliRazao').value = cli.razao;
       document.getElementById('cliFantasia').value = cli.fantasia || '';
       document.getElementById('cliCnpj').value = cli.cnpj || '';
+      document.getElementById('cliColuna1').value = cli.coluna1 || 'Desc. Prazo (%)';
+      document.getElementById('cliColuna2').value = cli.coluna2 || 'Desc. Vista (%)';
     }
   } else {
     document.getElementById('modalTitulo').innerText = 'Cadastrar Novo Cliente';
+    document.getElementById('cliColuna1').value = 'Desc. Prazo (%)';
+    document.getElementById('cliColuna2').value = 'Desc. Vista (%)';
   }
   document.getElementById('modalCliente').classList.remove('hidden');
 };
@@ -249,7 +253,8 @@ window.salvarCliente = async function(e) {
   }
 
   const idDocumento = idAtual ? idAtual : Date.now().toString(); 
-  const descontosAntigos = idAtual ? clientes.find(c => c.id === idAtual)?.descontos || [] : [];
+  const clienteAntigo = idAtual ? clientes.find(c => c.id === idAtual) : null;
+  const descontosAntigos = clienteAntigo ? clienteAntigo.descontos || [] : [];
 
   const dados = {
     codigo: codigoDigitado,
@@ -257,6 +262,8 @@ window.salvarCliente = async function(e) {
     razao: document.getElementById('cliRazao').value.trim(),
     fantasia: document.getElementById('cliFantasia').value.trim(),
     cnpj: cnpjDigitado,
+    coluna1: document.getElementById('cliColuna1').value.trim() || 'Desc. Prazo (%)',
+    coluna2: document.getElementById('cliColuna2').value.trim() || 'Desc. Vista (%)',
     descontos: descontosAntigos 
   };
 
@@ -290,15 +297,19 @@ window.abrirTabelaDescontos = function(clienteId) {
   document.getElementById('detalheCnpj').innerText = clienteAtual.cnpj ? `CNPJ: ${clienteAtual.cnpj}` : '';
   document.getElementById('detalheConsultor').innerText = `Atendido por: ${clienteAtual.consultor}`;
 
-  const btnImportarExcel = document.getElementById('btnImportarExcel');
-  if (btnImportarExcel) {
-    btnImportarExcel.style.display = perfilAtivo === 'admin' ? 'inline-flex' : 'none';
-  }
+  // Atualiza os nomes dinâmicos dos cabeçalhos das colunas na tela
+  const nomeCol1 = clienteAtual.coluna1 || 'Desc. Prazo (%)';
+  const nomeCol2 = clienteAtual.coluna2 || 'Desc. Vista (%)';
+  
+  document.getElementById('thColuna1').innerText = nomeCol1;
+  document.getElementById('thColuna2').innerText = nomeCol2;
+  document.getElementById('labelInputCol1').innerText = nomeCol1 + ':';
+  document.getElementById('labelInputCol2').innerText = nomeCol2 + ':';
 
+  const btnImportarExcel = document.getElementById('btnImportarExcel');
   const btnExcluirTodos = document.getElementById('btnExcluirTodos');
-  if (btnExcluirTodos) {
-    btnExcluirTodos.style.display = perfilAtivo === 'admin' ? 'inline-flex' : 'none';
-  }
+  if (btnImportarExcel) btnImportarExcel.style.display = perfilAtivo === 'admin' ? 'inline-flex' : 'none';
+  if (btnExcluirTodos) btnExcluirTodos.style.display = perfilAtivo === 'admin' ? 'inline-flex' : 'none';
 
   renderizarDescontos();
   document.getElementById('telaClientes').classList.add('hidden');
@@ -329,9 +340,9 @@ function renderizarDescontos() {
     
     tr.className = isPendente ? 'bg-amber-50' : 'bg-white';
 
-    // Corrige a exibição caso estivesse gravado em decimal (ex: 0.26 vira 26)
-    const valPrazo = prod.desconto !== undefined && prod.desconto !== null ? (prod.desconto <= 1 ? prod.desconto * 100 : prod.desconto) : '';
-    const valVista = prod.descontoVista !== undefined && prod.descontoVista !== null ? (prod.descontoVista <= 1 ? prod.descontoVista * 100 : prod.descontoVista) : '';
+    // Limita a exibição a no máximo 2 casas decimais (.toFixed(2) limpo)
+    const valPrazo = prod.desconto !== undefined && prod.desconto !== null ? (prod.desconto <= 1 ? Number((prod.desconto * 100).toFixed(2)) : Number(Number(prod.desconto).toFixed(2))) : '';
+    const valVista = prod.descontoVista !== undefined && prod.descontoVista !== null ? (prod.descontoVista <= 1 ? Number((prod.descontoVista * 100).toFixed(2)) : Number(Number(prod.descontoVista).toFixed(2))) : '';
 
     let acoesHtml = '';
     if (perfilAtivo === 'admin') {
@@ -360,10 +371,10 @@ function renderizarDescontos() {
         ${isPendente ? `<div class="text-[11px] text-amber-700 font-bold mt-1">⚠️ Sugestão pendente</div>` : ''}
       </td>
       <td class="border border-gray-200 p-2 text-right">
-        <input type="number" step="0.1" value="${valPrazo}" id="input-prazo-${prod.id}" class="w-full bg-transparent border border-gray-300 rounded p-1 text-sm text-right outline-none font-mono" />
+        <input type="number" step="0.01" value="${valPrazo}" id="input-prazo-${prod.id}" class="w-full bg-transparent border border-gray-300 rounded p-1 text-sm text-right outline-none font-mono" />
       </td>
       <td class="border border-gray-200 p-2 text-right">
-        <input type="number" step="0.1" value="${valVista}" id="input-vista-${prod.id}" class="w-full bg-transparent border border-gray-300 rounded p-1 text-sm text-right outline-none font-mono" />
+        <input type="number" step="0.01" value="${valVista}" id="input-vista-${prod.id}" class="w-full bg-transparent border border-gray-300 rounded p-1 text-sm text-right outline-none font-mono" />
       </td>
       <td class="border border-gray-200 p-2 text-center no-print">
         <div class="flex flex-col items-center gap-1">
@@ -386,11 +397,11 @@ window.adicionarProduto = async function() {
   if (!prodNome || !prodDesconto) return;
 
   const nome = prodNome.value.trim();
-  const desconto = parseFloat(prodDesconto.value);
+  const desconto = parseFloat(prodDesconto.value) || 0;
   const descontoVista = prodDescontoVista && prodDescontoVista.value ? parseFloat(prodDescontoVista.value) : 0;
 
-  if (!nome || isNaN(desconto)) {
-    alert('Preencha o produto e o desconto a prazo.');
+  if (!nome) {
+    alert('Preencha o nome do produto.');
     return;
   }
 
@@ -504,6 +515,23 @@ window.excluirProduto = async function(id) {
   }
 };
 
+window.excluirTodosProdutos = async function() {
+  if (perfilAtivo !== 'admin') return;
+  if (!clienteAtual) return;
+
+  if (confirm(`Tem a certeza que deseja apagar TODOS os produtos da tabela do cliente "${clienteAtual.razao}"?`)) {
+    try {
+      const clienteAtualizado = { ...clienteAtual, descontos: [] };
+      await setDoc(doc(db, "clientes", clienteAtual.id), clienteAtualizado);
+      clienteAtual = clienteAtualizado;
+      renderizarDescontos();
+      alert('Tabela limpa com sucesso.');
+    } catch (error) {
+      alert("Erro ao excluir: " + error.message);
+    }
+  }
+};
+
 // ==================== IMPORTAÇÃO DE EXCEL ====================
 window.processarExcel = async function(event) {
   if (perfilAtivo !== 'admin') return;
@@ -534,21 +562,25 @@ window.processarExcel = async function(event) {
         let nomeProduto = null;
         let valorPrazo = 0;
         let valorVista = 0;
+        let col1Detectada = null;
+        let col2Detectada = null;
 
-        chaves.forEach(chave => {
+        chaves.forEach((chave, idx) => {
           const chaveLower = chave.toLowerCase().trim();
           if (chaveLower.includes('produto') || chaveLower.includes('referencia') || chaveLower.includes('nome')) {
             nomeProduto = String(linha[chave]).trim();
-          }
-          if (chaveLower.includes('prazo') || (chaveLower.includes('desconto') && !chaveLower.includes('vista'))) {
-            valorPrazo = parseFloat(linha[chave]) || 0;
-          }
-          if (chaveLower.includes('vista')) {
-            valorVista = parseFloat(linha[chave]) || 0;
+          } else {
+            // Pega a primeira e segunda coluna numérica de desconto encontradas no Excel
+            if (!col1Detectada) {
+              col1Detectada = chave;
+              valorPrazo = parseFloat(linha[chave]) || 0;
+            } else if (!col2Detectada) {
+              col2Detectada = chave;
+              valorVista = parseFloat(linha[chave]) || 0;
+            }
           }
         });
 
-        // Se veio em formato decimal antigo (ex: 0.26), converte para 26
         if (valorPrazo > 0 && valorPrazo <= 1) valorPrazo = valorPrazo * 100;
         if (valorVista > 0 && valorVista <= 1) valorVista = valorVista * 100;
 
@@ -558,8 +590,8 @@ window.processarExcel = async function(event) {
             novosDescontos.push({
               id: Date.now() + index,
               nome: nomeProduto,
-              desconto: valorPrazo,
-              descontoVista: valorVista,
+              desconto: Number(valorPrazo.toFixed(2)),
+              descontoVista: Number(valorVista.toFixed(2)),
               status: 'aprovado',
               valorAntigo: null
             });
@@ -580,28 +612,4 @@ window.processarExcel = async function(event) {
     event.target.value = '';
   };
   reader.readAsArrayBuffer(file);
-};
-
-// ==================== EXCLUIR TODOS OS PRODUTOS DA TABELA ====================
-window.excluirTodosProdutos = async function() {
-  if (perfilAtivo !== 'admin') {
-    alert('Acesso negado.');
-    return;
-  }
-
-  if (!clienteAtual) return;
-
-  if (confirm(`Tem a certeza absoluta que deseja apagar TODOS os produtos e descontos da tabela do cliente "${clienteAtual.razao}"? Esta ação não pode ser desfeita.`)) {
-    try {
-      // Atualiza o cliente limpando a lista de descontos
-      const clienteAtualizado = { ...clienteAtual, descontos: [] };
-      await setDoc(doc(db, "clientes", clienteAtual.id), clienteAtualizado);
-      
-      clienteAtual = clienteAtualizado;
-      renderizarDescontos();
-      alert('Todos os produtos foram removidos com sucesso.');
-    } catch (error) {
-      alert("Erro ao excluir os produtos: " + error.message);
-    }
-  }
 };
