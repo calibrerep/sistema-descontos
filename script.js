@@ -1,4 +1,11 @@
+// Importando o Firebase e os módulos de Autenticação e Firestore
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
+import { 
+  getAuth, 
+  signInWithEmailAndPassword, 
+  signOut, 
+  onAuthStateChanged 
+} from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
 import { 
   getFirestore, 
   collection, 
@@ -18,19 +25,42 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
 const db = getFirestore(app);
 
 let clientes = [];
 let clienteAtual = null;
-let perfilAtivo = sessionStorage.getItem('usuarioLogado') || null;
+let perfilAtivo = null;
 
+// ==================== MONITOR DE SESSÃO DO FIREBASE AUTH ====================
+onAuthStateChanged(auth, (user) => {
+  if (user) {
+    const email = user.email.toLowerCase();
+    
+    // DEFINA AQUI QUEM É O ADMIN PELO E-MAIL:
+    if (email === 'calibrerep@mail.com') {
+      perfilAtivo = 'admin';
+    } else if (email === 'raul.fariascosta1993@gmail.com') {
+      perfilAtivo = 'Consultor 1'; // Ou Consultor 2, como preferir
+    } else {
+      perfilAtivo = 'Consultor 1'; // Padrão de segurança para novos
+    }
+
+    entrarSistemaInterface(perfilAtivo);
+  } else {
+    perfilAtivo = null;
+    sairSistemaInterface();
+  }
+});
+
+// ==================== REALTIME LISTENER DO FIRESTORE ====================
 onSnapshot(collection(db, "clientes"), (snapshot) => {
   clientes = [];
   snapshot.forEach((documento) => {
     clientes.push({ id: documento.id, ...documento.data() });
   });
 
-  if (perfilAtivo) {
+  if (auth.currentUser) {
     window.filtrarClientes();
     if (clienteAtual) {
       const atualizado = clientes.find(c => c.id === clienteAtual.id);
@@ -44,32 +74,33 @@ onSnapshot(collection(db, "clientes"), (snapshot) => {
   }
 });
 
-window.onload = () => {
-  if (perfilAtivo) {
-    window.entrarSistema(perfilAtivo);
+// ==================== FUNÇÃO DE LOGIN OFICIAL ====================
+window.fazerLogin = async function() {
+  const emailInput = document.getElementById('loginEmail').value.trim();
+  const senhaInput = document.getElementById('loginSenha').value;
+
+  if (!emailInput || !senhaInput) {
+    alert('Preencha o e-mail e a senha.');
+    return;
+  }
+
+  try {
+    await signInWithEmailAndPassword(auth, emailInput, senhaInput);
+    // O onAuthStateChanged vai capturar o sucesso e abrir o sistema automaticamente
+  } catch (error) {
+    alert('Erro ao entrar: Verifique suas credenciais. (' + error.message + ')');
   }
 };
 
-window.tentarLogin = function(perfil) {
-  const senhaDigitada = document.getElementById('senhaAcesso').value;
-  let senhaCorreta = '';
-
-  if (perfil === 'admin') senhaCorreta = 'calibre%99';
-  if (perfil === 'Consultor 1') senhaCorreta = 'Barra%99';
-  if (perfil === 'Consultor 2') senhaCorreta = 'Noroeste%99';
-
-  if (senhaDigitada === senhaCorreta) {
-    document.getElementById('senhaAcesso').value = '';
-    window.entrarSistema(perfil);
-  } else {
-    alert('Senha incorreta! Tente novamente.');
+window.sairSistema = async function() {
+  try {
+    await signOut(auth);
+  } catch (error) {
+    console.error("Erro ao sair:", error);
   }
 };
 
-window.entrarSistema = function(perfil) {
-  perfilAtivo = perfil;
-  sessionStorage.setItem('usuarioLogado', perfil);
-  
+function entrarSistemaInterface(perfil) {
   document.getElementById('nomePerfilAtivo').innerText = perfil === 'admin' ? 'Administrador' : perfil;
   document.getElementById('telaLogin').classList.add('hidden');
   document.getElementById('telaClientes').classList.remove('hidden');
@@ -80,18 +111,19 @@ window.entrarSistema = function(perfil) {
   }
 
   window.filtrarClientes();
-};
+}
 
-window.sairSistema = function() {
-  perfilAtivo = null;
-  sessionStorage.removeItem('usuarioLogado');
-  document.getElementById('senhaAcesso').value = '';
-  
+function sairSistemaInterface() {
   document.getElementById('telaClientes').classList.add('hidden');
   document.getElementById('telaDescontos').classList.add('hidden');
   document.getElementById('telaLogin').classList.remove('hidden');
-};
+  const emailField = document.getElementById('loginEmail');
+  const senhaField = document.getElementById('loginSenha');
+  if (emailField) emailField.value = '';
+  if (senhaField) senhaField.value = '';
+}
 
+// ==================== GESTÃO DE CLIENTES ====================
 function renderizarClientes(lista) {
   const tbody = document.getElementById('tabelaClientesCorpo');
   tbody.innerHTML = '';
@@ -137,7 +169,9 @@ function renderizarClientes(lista) {
 }
 
 window.filtrarClientes = function() {
-  const termo = document.getElementById('campoBusca').value.toLowerCase().trim();
+  const campoBusca = document.getElementById('campoBusca');
+  if (!campoBusca) return;
+  const termo = campoBusca.value.toLowerCase().trim();
   
   let filtrados = clientes.filter(c => {
     if (perfilAtivo !== 'admin' && c.consultor !== perfilAtivo) return false;
@@ -283,7 +317,6 @@ function renderizarDescontos() {
       }
     }
 
-    // Exibe o valor oficial aprovado ou a sugestão pendente dependendo da regra
     const valorExibido = (isPendente && perfilAtivo !== 'admin') ? (prod.valorAntigo !== undefined ? prod.valorAntigo : prod.desconto) : prod.desconto;
 
     tr.innerHTML = `
@@ -308,8 +341,12 @@ function renderizarDescontos() {
 }
 
 window.adicionarProduto = async function() {
-  const nome = document.getElementById('prodNome').value.trim();
-  const desconto = parseFloat(document.getElementById('prodDesconto').value);
+  const prodNome = document.getElementById('prodNome');
+  const prodDesconto = document.getElementById('prodDesconto');
+  if (!prodNome || !prodDesconto) return;
+
+  const nome = prodNome.value.trim();
+  const desconto = parseFloat(prodDesconto.value);
 
   if (!nome || isNaN(desconto)) {
     alert('Preencha o produto e o desconto.');
@@ -329,13 +366,13 @@ window.adicionarProduto = async function() {
 
   await setDoc(doc(db, "clientes", clienteAtual.id), { ...clienteAtual, descontos: novosDescontos });
 
-  document.getElementById('prodNome').value = '';
-  document.getElementById('prodDesconto').value = '';
+  prodNome.value = '';
+  prodDesconto.value = '';
 };
 
-// Consultor sugere alteração sem apagar o valor aprovado anterior
 window.sugerirAlteracao = async function(id) {
   const inputEl = document.getElementById(`input-prod-${id}`);
+  if (!inputEl) return;
   const novoValor = parseFloat(inputEl.value) || 0;
   
   const novosDescontos = [...clienteAtual.descontos];
@@ -343,13 +380,10 @@ window.sugerirAlteracao = async function(id) {
   
   if (prodIndex > -1) {
     const produto = novosDescontos[prodIndex];
-    
-    // Guarda o valor oficial atual se já não estiver guardado
     if (produto.status !== 'pendente') {
       produto.valorAntigo = produto.desconto;
     }
-    
-    produto.desconto = novoValor; // Armazena a sugestão
+    produto.desconto = novoValor;
     produto.status = 'pendente';
 
     await setDoc(doc(db, "clientes", clienteAtual.id), { ...clienteAtual, descontos: novosDescontos });
@@ -361,6 +395,7 @@ window.salvarAdminDireto = async function(id) {
   if (perfilAtivo !== 'admin') return;
 
   const inputEl = document.getElementById(`input-prod-${id}`);
+  if (!inputEl) return;
   const novoValor = parseFloat(inputEl.value) || 0;
   
   const novosDescontos = [...clienteAtual.descontos];
@@ -396,7 +431,6 @@ window.rejeitarProduto = async function(id) {
   
   if (prodIndex > -1) {
     const prod = novosDescontos[prodIndex];
-    // Se tinha valor antigo guardado, descarta a sugestão e volta para o valor original. Se era produto novo, remove.
     if (prod.valorAntigo !== undefined) {
       prod.desconto = prod.valorAntigo;
       prod.status = 'aprovado';
