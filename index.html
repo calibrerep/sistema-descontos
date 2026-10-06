@@ -93,12 +93,17 @@
           </div>
         </div>
 
-        <div class="no-print flex gap-2">
+       <div class="no-print flex gap-2 flex-wrap">
           <!-- Input oculto para carregar o Excel -->
           <input type="file" id="inputExcel" accept=".xlsx, .xls" class="hidden" onchange="processarExcel(event)" />
           
           <button id="btnImportarExcel" onclick="document.getElementById('inputExcel').click()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded text-sm font-semibold flex items-center gap-1" style="display: none;">
             ⬆ Importar Excel
+          </button>
+
+          <!-- NOVO BOTÃO: EXCLUIR TODOS OS ITENS (Visível apenas para o Admin) -->
+          <button id="btnExcluirTodos" onclick="excluirTodosProdutos()" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded text-sm font-semibold flex items-center gap-1" style="display: none;">
+            🗑️ Excluir Todos
           </button>
 
           <button onclick="window.print()" class="bg-gray-700 hover:bg-gray-800 text-white px-4 py-2 rounded text-sm font-semibold flex items-center gap-1">

@@ -295,6 +295,11 @@ window.abrirTabelaDescontos = function(clienteId) {
     btnImportarExcel.style.display = perfilAtivo === 'admin' ? 'inline-flex' : 'none';
   }
 
+  const btnExcluirTodos = document.getElementById('btnExcluirTodos');
+  if (btnExcluirTodos) {
+    btnExcluirTodos.style.display = perfilAtivo === 'admin' ? 'inline-flex' : 'none';
+  }
+
   renderizarDescontos();
   document.getElementById('telaClientes').classList.add('hidden');
   document.getElementById('telaDescontos').classList.remove('hidden');
@@ -575,4 +580,28 @@ window.processarExcel = async function(event) {
     event.target.value = '';
   };
   reader.readAsArrayBuffer(file);
+};
+
+// ==================== EXCLUIR TODOS OS PRODUTOS DA TABELA ====================
+window.excluirTodosProdutos = async function() {
+  if (perfilAtivo !== 'admin') {
+    alert('Acesso negado.');
+    return;
+  }
+
+  if (!clienteAtual) return;
+
+  if (confirm(`Tem a certeza absoluta que deseja apagar TODOS os produtos e descontos da tabela do cliente "${clienteAtual.razao}"? Esta ação não pode ser desfeita.`)) {
+    try {
+      // Atualiza o cliente limpando a lista de descontos
+      const clienteAtualizado = { ...clienteAtual, descontos: [] };
+      await setDoc(doc(db, "clientes", clienteAtual.id), clienteAtualizado);
+      
+      clienteAtual = clienteAtualizado;
+      renderizarDescontos();
+      alert('Todos os produtos foram removidos com sucesso.');
+    } catch (error) {
+      alert("Erro ao excluir os produtos: " + error.message);
+    }
+  }
 };
