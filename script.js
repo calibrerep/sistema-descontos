@@ -31,7 +31,7 @@ const db = getFirestore(app);
 let clientes = [];
 let clienteAtual = null;
 let perfilAtivo = null;
-let mostrarApenasPendencias = false; // Novo Estado do Filtro
+let mostrarApenasPendencias = false; 
 
 // ==================== MONITOR DE SESSÃO DO FIREBASE AUTH ====================
 onAuthStateChanged(auth, (user) => {
@@ -160,14 +160,11 @@ window.filtrarClientes = function() {
   const termo = campoBusca.value.toLowerCase().trim();
   
   let filtrados = clientes.filter(c => {
-    // 1. Filtro de Perfil
     if (perfilAtivo !== 'admin' && c.consultor !== perfilAtivo) return false;
     
-    // 2. Filtro de Pendências (Botão Amarelo)
     const temPendencia = c.descontos && c.descontos.some(p => p.status === 'pendente');
     if (mostrarApenasPendencias && !temPendencia) return false;
 
-    // 3. Filtro de Texto
     return c.codigo.toLowerCase().includes(termo) ||
            c.razao.toLowerCase().includes(termo) ||
            (c.cnpj && c.cnpj.includes(termo));
@@ -190,7 +187,6 @@ function renderizarClientes(lista) {
     const temPendencia = cli.descontos && cli.descontos.some(p => p.status === 'pendente');
     const badgePendencia = (perfilAtivo === 'admin' && temPendencia) ? '<span class="bg-amber-100 text-amber-800 text-[10px] px-2 py-0.5 rounded font-bold ml-1 animate-pulse">⚠️ Aprovar</span>' : '';
     
-    // Data de Última Atualização
     const dataAtualizacao = cli.ultimaAtualizacao ? new Date(cli.ultimaAtualizacao).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute:'2-digit' }) : 'Sem data';
 
     const tr = document.createElement('tr');
@@ -282,7 +278,6 @@ window.salvarCliente = async function(e) {
   const clienteAntigo = idAtual ? clientes.find(c => c.id === idAtual) : null;
   const descontosAntigos = clienteAntigo ? clienteAntigo.descontos || [] : [];
   
-  // Mantém a data antiga se for só uma edição de dados, a data principal atualiza ao mexer nos produtos
   const ultimaAtualizacao = clienteAntigo ? clienteAntigo.ultimaAtualizacao : new Date().toISOString();
 
   const dados = {
@@ -336,7 +331,6 @@ window.abrirTabelaDescontos = function(clienteId) {
   document.getElementById('labelInputCol1').innerText = nomeCol1 + ':';
   document.getElementById('labelInputCol2').innerText = nomeCol2 + ':';
 
-  // Mostrar botões exclusivos do Admin
   const btnImportarExcel = document.getElementById('btnImportarExcel');
   const btnExcluirTodos = document.getElementById('btnExcluirTodos');
   const btnAprovarTodos = document.getElementById('btnAprovarTodos');
@@ -401,10 +395,11 @@ function renderizarDescontos() {
       acoesHtml = isPendente ? `<span class="text-xs text-amber-700 font-bold">Em análise</span>` : `<span class="text-xs text-emerald-700 font-bold">Aprovado</span>`;
     }
 
+    // NOVIDADE: A coluna de Produto agora tem um input de texto em vez de ser fixa
     tr.innerHTML = `
-      <td class="border border-gray-200 p-2 text-sm font-medium">
-        ${prod.nome}
-        ${isPendente ? `<div class="text-[11px] text-amber-700 font-bold mt-1">⚠️ Sugestão pendente</div>` : ''}
+      <td class="border border-gray-200 p-2">
+        <input type="text" id="input-nome-${prod.id}" value="${prod.nome}" class="w-full bg-transparent border border-transparent hover:border-gray-300 focus:border-blue-500 rounded p-1 text-sm font-medium text-gray-900 outline-none transition-colors" />
+        ${isPendente ? `<div class="text-[11px] text-amber-700 font-bold mt-1 ml-1">⚠️ Sugestão pendente</div>` : ''}
       </td>
       <td class="border border-gray-200 p-2 text-right">
         <input type="number" step="0.01" value="${valPrazo}" id="input-prazo-${prod.id}" class="w-full bg-transparent border border-gray-300 rounded p-1 text-sm text-right outline-none font-mono" />
@@ -425,7 +420,7 @@ function renderizarDescontos() {
   });
 }
 
-// === LÓGICAS DE ATUALIZAÇÃO DA TABELA (Gravando Última Atualização) ===
+// === LÓGICAS DE ATUALIZAÇÃO DA TABELA ===
 
 window.adicionarProduto = async function() {
   const prodNome = document.getElementById('prodNome');
@@ -458,35 +453,56 @@ window.adicionarProduto = async function() {
 };
 
 window.sugerirAlteracao = async function(id) {
+  const nomeEl = document.getElementById(`input-nome-${id}`); // Lê o novo nome
   const prazoEl = document.getElementById(`input-prazo-${id}`);
   const vistaEl = document.getElementById(`input-vista-${id}`);
-  if (!prazoEl || !vistaEl) return;
+  if (!prazoEl || !vistaEl || !nomeEl) return;
   
+  const novoNome = nomeEl.value.trim();
+  if (!novoNome) { alert("O nome do produto não pode ficar vazio."); return; }
+
   const novosDescontos = [...clienteAtual.descontos];
+
+  // Verifica se o utilizador não renomeou para um produto que já existe (ignorando o id atual)
+  const jaExiste = novosDescontos.some(p => p.id !== id && p.nome.toLowerCase() === novoNome.toLowerCase());
+  if (jaExiste) { alert('Já existe outro produto com este nome na tabela!'); return; }
+
   const prodIndex = novosDescontos.findIndex(p => p.id === id);
   
   if (prodIndex > -1) {
+    novosDescontos[prodIndex].nome = novoNome;
     novosDescontos[prodIndex].desconto = parseFloat(prazoEl.value) || 0;
     novosDescontos[prodIndex].descontoVista = parseFloat(vistaEl.value) || 0;
     novosDescontos[prodIndex].status = 'pendente';
 
     try {
       await setDoc(doc(db, "clientes", clienteAtual.id), { ...clienteAtual, descontos: novosDescontos, ultimaAtualizacao: new Date().toISOString() });
-      alert('Sugestão enviada para o Administrador!');
+      alert('Sugestão (nome/valores) enviada para o Administrador!');
     } catch (erro) { alert("Erro ao gravar: " + erro.message); }
   }
 };
 
 window.salvarAdminDireto = async function(id) {
   if (perfilAtivo !== 'admin') return;
+  
+  const nomeEl = document.getElementById(`input-nome-${id}`); // Lê o novo nome
   const prazoEl = document.getElementById(`input-prazo-${id}`);
   const vistaEl = document.getElementById(`input-vista-${id}`);
-  if (!prazoEl || !vistaEl) return;
+  if (!prazoEl || !vistaEl || !nomeEl) return;
   
+  const novoNome = nomeEl.value.trim();
+  if (!novoNome) { alert("O nome do produto não pode ficar vazio."); return; }
+
   const novosDescontos = [...clienteAtual.descontos];
+
+  // Verifica se não renomeou para um produto que já existe
+  const jaExiste = novosDescontos.some(p => p.id !== id && p.nome.toLowerCase() === novoNome.toLowerCase());
+  if (jaExiste) { alert('Já existe outro produto com este nome na tabela!'); return; }
+
   const prodIndex = novosDescontos.findIndex(p => p.id === id);
   
   if (prodIndex > -1) {
+    novosDescontos[prodIndex].nome = novoNome;
     novosDescontos[prodIndex].desconto = parseFloat(prazoEl.value) || 0;
     novosDescontos[prodIndex].descontoVista = parseFloat(vistaEl.value) || 0;
     novosDescontos[prodIndex].status = 'aprovado';
@@ -494,7 +510,7 @@ window.salvarAdminDireto = async function(id) {
 
     try {
       await setDoc(doc(db, "clientes", clienteAtual.id), { ...clienteAtual, descontos: novosDescontos, ultimaAtualizacao: new Date().toISOString() });
-      alert('Atualizado com sucesso!');
+      alert('Produto atualizado com sucesso!');
     } catch (erro) { alert("Erro ao gravar: " + erro.message); }
   }
 };
@@ -565,7 +581,6 @@ window.exportarExcel = function() {
   const nomeCol1 = clienteAtual.coluna1 || 'Desc. Prazo (%)';
   const nomeCol2 = clienteAtual.coluna2 || 'Desc. Vista (%)';
 
-  // Mapeia apenas o que importa para ficar um Excel limpo e profissional
   const dadosExportacao = clienteAtual.descontos.map(p => ({
     'Produto / Referência': p.nome,
     [nomeCol1]: p.desconto !== null ? Number(p.desconto).toFixed(2) : '0.00',
@@ -577,7 +592,6 @@ window.exportarExcel = function() {
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, worksheet, "Tabela de Preços");
   
-  // Gera o nome do ficheiro dinamicamente com o nome do cliente
   const nomeArquivo = `Tabela_${clienteAtual.razao.replace(/[^a-zA-Z0-9]/g, '_')}_${new Date().toLocaleDateString('pt-BR').replace(/\//g, '')}.xlsx`;
   XLSX.writeFile(workbook, nomeArquivo);
 };
