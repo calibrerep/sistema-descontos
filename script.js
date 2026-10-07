@@ -107,9 +107,11 @@ function entrarSistemaInterface(perfil) {
   
   const btnNovoCliente = document.getElementById('btnNovoCliente');
   const btnBackup = document.getElementById('btnBackup');
+  const btnRestaurar = document.getElementById('btnRestaurar');
   
   if (btnNovoCliente) btnNovoCliente.style.display = perfil === 'admin' ? 'inline-flex' : 'none';
   if (btnBackup) btnBackup.style.display = perfil === 'admin' ? 'inline-flex' : 'none';
+  if (btnRestaurar) btnRestaurar.style.display = perfil === 'admin' ? 'inline-flex' : 'none';
 
   window.filtrarClientes();
 }
@@ -124,6 +126,7 @@ function sairSistemaInterface() {
   if (senhaField) senhaField.value = '';
 }
 
+// ==================== BACKUP & RESTAURAÇÃO ====================
 window.fazerBackup = function() {
   if (perfilAtivo !== 'admin') return;
   const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(clientes, null, 2));
@@ -133,6 +136,49 @@ window.fazerBackup = function() {
   document.body.appendChild(link);
   link.click();
   link.remove();
+};
+
+window.restaurarBackup = async function(event) {
+  if (perfilAtivo !== 'admin') return;
+  
+  const file = event.target.files[0];
+  if (!file) return;
+
+  if (!confirm("ATENÇÃO: Este processo vai injetar os dados do ficheiro na nuvem. Clientes já existentes serão substituídos pelos do backup. Deseja continuar?")) {
+    event.target.value = '';
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = async function(e) {
+    try {
+      const conteudo = e.target.result;
+      const dadosRestaurados = JSON.parse(conteudo);
+      
+      if (!Array.isArray(dadosRestaurados)) {
+        throw new Error("O ficheiro não tem o formato JSON correto de backup.");
+      }
+
+      let restauradosCount = 0;
+      
+      // Grava cliente a cliente no Firebase Firestore
+      for (const cli of dadosRestaurados) {
+        if (cli && cli.id) {
+          await setDoc(doc(db, "clientes", cli.id), cli);
+          restauradosCount++;
+        }
+      }
+
+      alert(`Restauração concluída com sucesso! ${restauradosCount} clientes foram processados para a nuvem.`);
+      
+    } catch (erro) {
+      alert("Erro ao ler ou restaurar o ficheiro de backup: " + erro.message);
+    }
+    
+    event.target.value = ''; // Limpa o input
+  };
+  
+  reader.readAsText(file);
 };
 
 // ==================== GESTÃO DE CLIENTES & FILTROS ====================
@@ -281,6 +327,7 @@ window.salvarCliente = async function(e) {
   const ultimaAtualizacao = clienteAntigo ? clienteAntigo.ultimaAtualizacao : new Date().toISOString();
 
   const dados = {
+    id: idDocumento, // Importante gravar o ID para o restauro funcionar perfeitamente
     codigo: codigoDigitado,
     consultor: document.getElementById('cliConsultor').value,
     razao: document.getElementById('cliRazao').value.trim(),
@@ -395,7 +442,6 @@ function renderizarDescontos() {
       acoesHtml = isPendente ? `<span class="text-xs text-amber-700 font-bold">Em análise</span>` : `<span class="text-xs text-emerald-700 font-bold">Aprovado</span>`;
     }
 
-    // NOVIDADE: A coluna de Produto agora tem um input de texto em vez de ser fixa
     tr.innerHTML = `
       <td class="border border-gray-200 p-2">
         <input type="text" id="input-nome-${prod.id}" value="${prod.nome}" class="w-full bg-transparent border border-transparent hover:border-gray-300 focus:border-blue-500 rounded p-1 text-sm font-medium text-gray-900 outline-none transition-colors" />
@@ -453,7 +499,7 @@ window.adicionarProduto = async function() {
 };
 
 window.sugerirAlteracao = async function(id) {
-  const nomeEl = document.getElementById(`input-nome-${id}`); // Lê o novo nome
+  const nomeEl = document.getElementById(`input-nome-${id}`);
   const prazoEl = document.getElementById(`input-prazo-${id}`);
   const vistaEl = document.getElementById(`input-vista-${id}`);
   if (!prazoEl || !vistaEl || !nomeEl) return;
@@ -463,7 +509,6 @@ window.sugerirAlteracao = async function(id) {
 
   const novosDescontos = [...clienteAtual.descontos];
 
-  // Verifica se o utilizador não renomeou para um produto que já existe (ignorando o id atual)
   const jaExiste = novosDescontos.some(p => p.id !== id && p.nome.toLowerCase() === novoNome.toLowerCase());
   if (jaExiste) { alert('Já existe outro produto com este nome na tabela!'); return; }
 
@@ -485,7 +530,7 @@ window.sugerirAlteracao = async function(id) {
 window.salvarAdminDireto = async function(id) {
   if (perfilAtivo !== 'admin') return;
   
-  const nomeEl = document.getElementById(`input-nome-${id}`); // Lê o novo nome
+  const nomeEl = document.getElementById(`input-nome-${id}`);
   const prazoEl = document.getElementById(`input-prazo-${id}`);
   const vistaEl = document.getElementById(`input-vista-${id}`);
   if (!prazoEl || !vistaEl || !nomeEl) return;
@@ -495,7 +540,6 @@ window.salvarAdminDireto = async function(id) {
 
   const novosDescontos = [...clienteAtual.descontos];
 
-  // Verifica se não renomeou para um produto que já existe
   const jaExiste = novosDescontos.some(p => p.id !== id && p.nome.toLowerCase() === novoNome.toLowerCase());
   if (jaExiste) { alert('Já existe outro produto com este nome na tabela!'); return; }
 
