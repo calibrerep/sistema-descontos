@@ -31,12 +31,12 @@ const db = getFirestore(app);
 let clientes = [];
 let clienteAtual = null;
 let perfilAtivo = null;
+let mostrarApenasPendencias = false; // Novo Estado do Filtro
 
 // ==================== MONITOR DE SESSÃO DO FIREBASE AUTH ====================
 onAuthStateChanged(auth, (user) => {
   if (user) {
     const email = user.email.toLowerCase();
-    
     if (email === 'calibrerep@gmail.com') {
       perfilAtivo = 'admin';
     } else if (email === 'mezavila@mezavila.com') {
@@ -46,7 +46,6 @@ onAuthStateChanged(auth, (user) => {
     } else {
       perfilAtivo = 'Sem Acesso'; 
     }
-
     entrarSistemaInterface(perfilAtivo);
   } else {
     perfilAtivo = null;
@@ -126,11 +125,7 @@ function sairSistemaInterface() {
 }
 
 window.fazerBackup = function() {
-  if (perfilAtivo !== 'admin') {
-    alert('Acesso negado.');
-    return;
-  }
-  
+  if (perfilAtivo !== 'admin') return;
   const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(clientes, null, 2));
   const link = document.createElement('a');
   link.setAttribute("href", dataStr);
@@ -140,19 +135,63 @@ window.fazerBackup = function() {
   link.remove();
 };
 
-// ==================== GESTÃO DE CLIENTES ====================
+// ==================== GESTÃO DE CLIENTES & FILTROS ====================
+
+window.alternarFiltroPendencias = function() {
+  mostrarApenasPendencias = !mostrarApenasPendencias;
+  const btn = document.getElementById('btnFiltroPendencias');
+  
+  if (mostrarApenasPendencias) {
+    btn.classList.replace('bg-amber-100', 'bg-amber-500');
+    btn.classList.replace('text-amber-800', 'text-white');
+    btn.innerText = '✖ Limpar Filtro';
+  } else {
+    btn.classList.replace('bg-amber-500', 'bg-amber-100');
+    btn.classList.replace('text-white', 'text-amber-800');
+    btn.innerText = '⚠️ Ver Pendências';
+  }
+  
+  window.filtrarClientes();
+};
+
+window.filtrarClientes = function() {
+  const campoBusca = document.getElementById('campoBusca');
+  if (!campoBusca) return;
+  const termo = campoBusca.value.toLowerCase().trim();
+  
+  let filtrados = clientes.filter(c => {
+    // 1. Filtro de Perfil
+    if (perfilAtivo !== 'admin' && c.consultor !== perfilAtivo) return false;
+    
+    // 2. Filtro de Pendências (Botão Amarelo)
+    const temPendencia = c.descontos && c.descontos.some(p => p.status === 'pendente');
+    if (mostrarApenasPendencias && !temPendencia) return false;
+
+    // 3. Filtro de Texto
+    return c.codigo.toLowerCase().includes(termo) ||
+           c.razao.toLowerCase().includes(termo) ||
+           (c.cnpj && c.cnpj.includes(termo));
+  });
+
+  filtrados.sort((a, b) => a.razao.localeCompare(b.razao));
+  renderizarClientes(filtrados);
+};
+
 function renderizarClientes(lista) {
   const tbody = document.getElementById('tabelaClientesCorpo');
   tbody.innerHTML = '';
 
   if (lista.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="4" class="p-4 text-center text-gray-500 text-sm">Nenhum cliente visível para o seu perfil.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="4" class="p-4 text-center text-gray-500 text-sm">Nenhum cliente encontrado.</td></tr>`;
     return;
   }
 
   lista.forEach(cli => {
     const temPendencia = cli.descontos && cli.descontos.some(p => p.status === 'pendente');
     const badgePendencia = (perfilAtivo === 'admin' && temPendencia) ? '<span class="bg-amber-100 text-amber-800 text-[10px] px-2 py-0.5 rounded font-bold ml-1 animate-pulse">⚠️ Aprovar</span>' : '';
+    
+    // Data de Última Atualização
+    const dataAtualizacao = cli.ultimaAtualizacao ? new Date(cli.ultimaAtualizacao).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute:'2-digit' }) : 'Sem data';
 
     const tr = document.createElement('tr');
     tr.className = "border-b hover:bg-gray-50 text-sm";
@@ -176,7 +215,8 @@ function renderizarClientes(lista) {
       <td class="p-3 font-semibold text-blue-600">${cli.codigo}</td>
       <td class="p-3">
         <div class="font-bold text-gray-900">${cli.razao} ${badgePendencia}</div>
-        <div class="text-xs text-gray-500">${cli.fantasia || '-'}</div>
+        <div class="text-xs text-gray-500 mb-1">${cli.fantasia || '-'}</div>
+        <div class="text-[10px] text-gray-400 font-medium">🕒 Atualizado: ${dataAtualizacao}</div>
       </td>
       <td class="p-3">
         <span class="bg-gray-100 text-gray-800 text-xs px-2 py-1 rounded border">${cli.consultor}</span>
@@ -189,31 +229,11 @@ function renderizarClientes(lista) {
   });
 }
 
-window.filtrarClientes = function() {
-  const campoBusca = document.getElementById('campoBusca');
-  if (!campoBusca) return;
-  const termo = campoBusca.value.toLowerCase().trim();
-  
-  let filtrados = clientes.filter(c => {
-    if (perfilAtivo !== 'admin' && c.consultor !== perfilAtivo) return false;
-    return c.codigo.toLowerCase().includes(termo) ||
-           c.razao.toLowerCase().includes(termo) ||
-           (c.cnpj && c.cnpj.includes(termo));
-  });
-
-  filtrados.sort((a, b) => a.razao.localeCompare(b.razao));
-  renderizarClientes(filtrados);
-};
-
 window.abrirModalCliente = function(id = null) {
-  if (perfilAtivo !== 'admin') {
-    alert('Acesso negado.');
-    return;
-  }
+  if (perfilAtivo !== 'admin') return;
 
   document.getElementById('formCliente').reset();
   document.getElementById('cliId').value = '';
-  document.getElementById('cliConsultor').disabled = false;
 
   if (id) {
     const cli = clientes.find(c => c.id === id);
@@ -261,6 +281,9 @@ window.salvarCliente = async function(e) {
   const idDocumento = idAtual ? idAtual : Date.now().toString(); 
   const clienteAntigo = idAtual ? clientes.find(c => c.id === idAtual) : null;
   const descontosAntigos = clienteAntigo ? clienteAntigo.descontos || [] : [];
+  
+  // Mantém a data antiga se for só uma edição de dados, a data principal atualiza ao mexer nos produtos
+  const ultimaAtualizacao = clienteAntigo ? clienteAntigo.ultimaAtualizacao : new Date().toISOString();
 
   const dados = {
     codigo: codigoDigitado,
@@ -270,7 +293,8 @@ window.salvarCliente = async function(e) {
     cnpj: cnpjDigitado,
     coluna1: document.getElementById('cliColuna1').value.trim() || 'Desc. Prazo (%)',
     coluna2: document.getElementById('cliColuna2').value.trim() || 'Desc. Vista (%)',
-    descontos: descontosAntigos
+    descontos: descontosAntigos,
+    ultimaAtualizacao: ultimaAtualizacao
   };
 
   try {
@@ -283,7 +307,6 @@ window.salvarCliente = async function(e) {
 
 window.excluirCliente = async function(id) {
   if (perfilAtivo !== 'admin') return;
-
   if (confirm("Tem certeza que deseja apagar este cliente e sua tabela?")) {
     try {
       await deleteDoc(doc(db, "clientes", id));
@@ -313,10 +336,17 @@ window.abrirTabelaDescontos = function(clienteId) {
   document.getElementById('labelInputCol1').innerText = nomeCol1 + ':';
   document.getElementById('labelInputCol2').innerText = nomeCol2 + ':';
 
+  // Mostrar botões exclusivos do Admin
   const btnImportarExcel = document.getElementById('btnImportarExcel');
   const btnExcluirTodos = document.getElementById('btnExcluirTodos');
+  const btnAprovarTodos = document.getElementById('btnAprovarTodos');
+  
   if (btnImportarExcel) btnImportarExcel.style.display = perfilAtivo === 'admin' ? 'inline-flex' : 'none';
   if (btnExcluirTodos) btnExcluirTodos.style.display = perfilAtivo === 'admin' ? 'inline-flex' : 'none';
+  if (btnAprovarTodos) {
+    const temPendencias = clienteAtual.descontos && clienteAtual.descontos.some(p => p.status === 'pendente');
+    btnAprovarTodos.style.display = (perfilAtivo === 'admin' && temPendencias) ? 'inline-flex' : 'none';
+  }
 
   renderizarDescontos();
   document.getElementById('telaClientes').classList.add('hidden');
@@ -395,48 +425,36 @@ function renderizarDescontos() {
   });
 }
 
+// === LÓGICAS DE ATUALIZAÇÃO DA TABELA (Gravando Última Atualização) ===
+
 window.adicionarProduto = async function() {
   const prodNome = document.getElementById('prodNome');
   const prodDesconto = document.getElementById('prodDesconto');
   const prodDescontoVista = document.getElementById('prodDescontoVista');
   
   if (!prodNome || !prodDesconto) return;
-
   const nome = prodNome.value.trim();
   const desconto = parseFloat(prodDesconto.value) || 0;
   const descontoVista = prodDescontoVista && prodDescontoVista.value ? parseFloat(prodDescontoVista.value) : 0;
 
-  if (!nome) {
-    alert('Preencha o nome do produto.');
-    return;
-  }
-
+  if (!nome) { alert('Preencha o nome do produto.'); return; }
   const jaExiste = (clienteAtual.descontos || []).some(p => p.nome.toLowerCase() === nome.toLowerCase());
-  if (jaExiste) {
-    alert('Atenção: Este produto já está cadastrado!');
-    return;
-  }
+  if (jaExiste) { alert('Atenção: Este produto já está cadastrado!'); return; }
 
   const novosDescontos = [...(clienteAtual.descontos || [])];
-  const statusInicial = perfilAtivo === 'admin' ? 'aprovado' : 'pendente';
-
   novosDescontos.push({ 
     id: Date.now(), 
     nome, 
     desconto, 
     descontoVista, 
-    status: statusInicial,
+    status: perfilAtivo === 'admin' ? 'aprovado' : 'pendente',
     valorAntigo: null
   });
 
   try {
-    await setDoc(doc(db, "clientes", clienteAtual.id), { ...clienteAtual, descontos: novosDescontos });
-    prodNome.value = '';
-    prodDesconto.value = '';
-    if (prodDescontoVista) prodDescontoVista.value = '';
-  } catch (erro) {
-    alert("Erro ao gravar: " + erro.message);
-  }
+    await setDoc(doc(db, "clientes", clienteAtual.id), { ...clienteAtual, descontos: novosDescontos, ultimaAtualizacao: new Date().toISOString() });
+    prodNome.value = ''; prodDesconto.value = ''; if (prodDescontoVista) prodDescontoVista.value = '';
+  } catch (erro) { alert("Erro ao gravar: " + erro.message); }
 };
 
 window.sugerirAlteracao = async function(id) {
@@ -444,104 +462,129 @@ window.sugerirAlteracao = async function(id) {
   const vistaEl = document.getElementById(`input-vista-${id}`);
   if (!prazoEl || !vistaEl) return;
   
-  const novoPrazo = parseFloat(prazoEl.value) || 0;
-  const novoVista = parseFloat(vistaEl.value) || 0;
-  
   const novosDescontos = [...clienteAtual.descontos];
   const prodIndex = novosDescontos.findIndex(p => p.id === id);
   
   if (prodIndex > -1) {
-    novosDescontos[prodIndex].desconto = novoPrazo;
-    novosDescontos[prodIndex].descontoVista = novoVista;
+    novosDescontos[prodIndex].desconto = parseFloat(prazoEl.value) || 0;
+    novosDescontos[prodIndex].descontoVista = parseFloat(vistaEl.value) || 0;
     novosDescontos[prodIndex].status = 'pendente';
 
     try {
-      await setDoc(doc(db, "clientes", clienteAtual.id), { ...clienteAtual, descontos: novosDescontos });
+      await setDoc(doc(db, "clientes", clienteAtual.id), { ...clienteAtual, descontos: novosDescontos, ultimaAtualizacao: new Date().toISOString() });
       alert('Sugestão enviada para o Administrador!');
-    } catch (erro) {
-      alert("Erro ao gravar: " + erro.message);
-    }
+    } catch (erro) { alert("Erro ao gravar: " + erro.message); }
   }
 };
 
 window.salvarAdminDireto = async function(id) {
   if (perfilAtivo !== 'admin') return;
-
   const prazoEl = document.getElementById(`input-prazo-${id}`);
   const vistaEl = document.getElementById(`input-vista-${id}`);
   if (!prazoEl || !vistaEl) return;
-  
-  const novoPrazo = parseFloat(prazoEl.value) || 0;
-  const novoVista = parseFloat(vistaEl.value) || 0;
   
   const novosDescontos = [...clienteAtual.descontos];
   const prodIndex = novosDescontos.findIndex(p => p.id === id);
   
   if (prodIndex > -1) {
-    novosDescontos[prodIndex].desconto = novoPrazo;
-    novosDescontos[prodIndex].descontoVista = novoVista;
+    novosDescontos[prodIndex].desconto = parseFloat(prazoEl.value) || 0;
+    novosDescontos[prodIndex].descontoVista = parseFloat(vistaEl.value) || 0;
     novosDescontos[prodIndex].status = 'aprovado';
     novosDescontos[prodIndex].valorAntigo = null;
 
     try {
-      await setDoc(doc(db, "clientes", clienteAtual.id), { ...clienteAtual, descontos: novosDescontos });
-      alert('Descontos atualizados com sucesso!');
-    } catch (erro) {
-      alert("Erro ao gravar: " + erro.message);
-    }
+      await setDoc(doc(db, "clientes", clienteAtual.id), { ...clienteAtual, descontos: novosDescontos, ultimaAtualizacao: new Date().toISOString() });
+      alert('Atualizado com sucesso!');
+    } catch (erro) { alert("Erro ao gravar: " + erro.message); }
   }
 };
 
 window.aprovarProduto = async function(id) {
   if (perfilAtivo !== 'admin') return;
-
   const novosDescontos = [...clienteAtual.descontos];
   const prod = novosDescontos.find(p => p.id === id);
   if (prod) {
-    prod.status = 'aprovado';
-    prod.valorAntigo = null;
-    await setDoc(doc(db, "clientes", clienteAtual.id), { ...clienteAtual, descontos: novosDescontos });
+    prod.status = 'aprovado'; prod.valorAntigo = null;
+    await setDoc(doc(db, "clientes", clienteAtual.id), { ...clienteAtual, descontos: novosDescontos, ultimaAtualizacao: new Date().toISOString() });
+  }
+};
+
+window.aprovarTodosProdutos = async function() {
+  if (perfilAtivo !== 'admin') return;
+  if (!clienteAtual || !clienteAtual.descontos) return;
+
+  if (confirm(`Aprovar todas as sugestões pendentes do cliente "${clienteAtual.razao}" de uma só vez?`)) {
+    const novosDescontos = clienteAtual.descontos.map(p => {
+      if (p.status === 'pendente') {
+        return { ...p, status: 'aprovado', valorAntigo: null };
+      }
+      return p;
+    });
+    
+    try {
+      await setDoc(doc(db, "clientes", clienteAtual.id), { ...clienteAtual, descontos: novosDescontos, ultimaAtualizacao: new Date().toISOString() });
+      alert('Todos os produtos foram aprovados!');
+    } catch (erro) {
+      alert("Erro ao aprovar em lote: " + erro.message);
+    }
   }
 };
 
 window.rejeitarProduto = async function(id) {
   if (perfilAtivo !== 'admin') return;
-
   const novosDescontos = [...clienteAtual.descontos];
   const filtrados = novosDescontos.filter(p => p.id !== id);
-  await setDoc(doc(db, "clientes", clienteAtual.id), { ...clienteAtual, descontos: filtrados });
+  await setDoc(doc(db, "clientes", clienteAtual.id), { ...clienteAtual, descontos: filtrados, ultimaAtualizacao: new Date().toISOString() });
 };
 
 window.excluirProduto = async function(id) {
   if (perfilAtivo !== 'admin') return;
-
   if (confirm('Remover este produto?')) {
     const novosDescontos = clienteAtual.descontos.filter(p => p.id !== id);
-    await setDoc(doc(db, "clientes", clienteAtual.id), { ...clienteAtual, descontos: novosDescontos });
+    await setDoc(doc(db, "clientes", clienteAtual.id), { ...clienteAtual, descontos: novosDescontos, ultimaAtualizacao: new Date().toISOString() });
   }
 };
 
 window.excluirTodosProdutos = async function() {
-  if (perfilAtivo !== 'admin') return;
-  if (!clienteAtual) return;
-
+  if (perfilAtivo !== 'admin' || !clienteAtual) return;
   if (confirm(`Tem a certeza que deseja apagar TODOS os produtos da tabela do cliente "${clienteAtual.razao}"?`)) {
     try {
-      const clienteAtualizado = { ...clienteAtual, descontos: [] };
-      await setDoc(doc(db, "clientes", clienteAtual.id), clienteAtualizado);
-      clienteAtual = clienteAtualizado;
-      renderizarDescontos();
+      await setDoc(doc(db, "clientes", clienteAtual.id), { ...clienteAtual, descontos: [], ultimaAtualizacao: new Date().toISOString() });
       alert('Tabela limpa com sucesso.');
-    } catch (error) {
-      alert("Erro ao excluir: " + error.message);
-    }
+    } catch (error) { alert("Erro ao excluir: " + error.message); }
   }
+};
+
+// ==================== EXPORTAÇÃO PARA EXCEL ====================
+window.exportarExcel = function() {
+  if (!clienteAtual || !clienteAtual.descontos || clienteAtual.descontos.length === 0) {
+    alert('Não há produtos cadastrados para exportar nesta tabela.');
+    return;
+  }
+  
+  const nomeCol1 = clienteAtual.coluna1 || 'Desc. Prazo (%)';
+  const nomeCol2 = clienteAtual.coluna2 || 'Desc. Vista (%)';
+
+  // Mapeia apenas o que importa para ficar um Excel limpo e profissional
+  const dadosExportacao = clienteAtual.descontos.map(p => ({
+    'Produto / Referência': p.nome,
+    [nomeCol1]: p.desconto !== null ? Number(p.desconto).toFixed(2) : '0.00',
+    [nomeCol2]: p.descontoVista !== null ? Number(p.descontoVista).toFixed(2) : '0.00',
+    'Status no Sistema': p.status === 'aprovado' ? 'Aprovado' : 'Pendente (Aguardando Aprovação)'
+  }));
+
+  const worksheet = XLSX.utils.json_to_sheet(dadosExportacao);
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, "Tabela de Preços");
+  
+  // Gera o nome do ficheiro dinamicamente com o nome do cliente
+  const nomeArquivo = `Tabela_${clienteAtual.razao.replace(/[^a-zA-Z0-9]/g, '_')}_${new Date().toLocaleDateString('pt-BR').replace(/\//g, '')}.xlsx`;
+  XLSX.writeFile(workbook, nomeArquivo);
 };
 
 // ==================== IMPORTAÇÃO DE EXCEL ====================
 window.processarExcel = async function(event) {
   if (perfilAtivo !== 'admin') return;
-  
   const file = event.target.files[0];
   if (!file) return;
 
@@ -550,39 +593,26 @@ window.processarExcel = async function(event) {
     try {
       const data = new Uint8Array(e.target.result);
       const workbook = XLSX.read(data, { type: 'array' });
-      const firstSheetName = workbook.SheetNames[0];
-      const worksheet = workbook.Sheets[firstSheetName];
+      const worksheet = workbook.Sheets[workbook.SheetNames[0]];
       const json = XLSX.utils.sheet_to_json(worksheet);
       
-      if (json.length === 0) {
-        alert("O ficheiro Excel está vazio.");
-        event.target.value = '';
-        return;
-      }
+      if (json.length === 0) { alert("O ficheiro Excel está vazio."); event.target.value = ''; return; }
 
       let adicionados = 0;
       const novosDescontos = [...(clienteAtual.descontos || [])];
 
       json.forEach((linha, index) => {
         const chaves = Object.keys(linha);
-        let nomeProduto = null;
-        let valorPrazo = 0;
-        let valorVista = 0;
-        let col1Detectada = null;
-        let col2Detectada = null;
+        let nomeProduto = null; let valorPrazo = 0; let valorVista = 0;
+        let col1Detectada = null; let col2Detectada = null;
 
-        chaves.forEach((chave, idx) => {
+        chaves.forEach((chave) => {
           const chaveLower = chave.toLowerCase().trim();
           if (chaveLower.includes('produto') || chaveLower.includes('referencia') || chaveLower.includes('nome')) {
             nomeProduto = String(linha[chave]).trim();
           } else {
-            if (!col1Detectada) {
-              col1Detectada = chave;
-              valorPrazo = parseFloat(linha[chave]) || 0;
-            } else if (!col2Detectada) {
-              col2Detectada = chave;
-              valorVista = parseFloat(linha[chave]) || 0;
-            }
+            if (!col1Detectada) { col1Detectada = chave; valorPrazo = parseFloat(linha[chave]) || 0; }
+            else if (!col2Detectada) { col2Detectada = chave; valorVista = parseFloat(linha[chave]) || 0; }
           }
         });
 
@@ -606,14 +636,12 @@ window.processarExcel = async function(event) {
       });
 
       if (adicionados > 0) {
-        await setDoc(doc(db, "clientes", clienteAtual.id), { ...clienteAtual, descontos: novosDescontos });
+        await setDoc(doc(db, "clientes", clienteAtual.id), { ...clienteAtual, descontos: novosDescontos, ultimaAtualizacao: new Date().toISOString() });
         alert(`Importação concluída! ${adicionados} produtos adicionados.`);
       } else {
         alert("Nenhum produto novo encontrado ou todos já estavam cadastrados.");
       }
-    } catch (erro) {
-      alert("Erro ao processar o Excel: " + erro.message);
-    }
+    } catch (erro) { alert("Erro ao processar o Excel: " + erro.message); }
     event.target.value = '';
   };
   reader.readAsArrayBuffer(file);
