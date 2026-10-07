@@ -67,16 +67,11 @@ onSnapshot(collection(db, "clientes"), (snapshot) => {
       const atualizado = clientes.find(c => c.id === clienteAtual.id);
       if (atualizado) {
         clienteAtual = atualizado;
-        // Atualiza a ecrã que estiver aberta no momento
         if (!document.getElementById('telaDescontos').classList.contains('hidden')) {
           renderizarDescontos();
         }
-        if (!document.getElementById('modalPedidos').classList.contains('hidden')) {
-          renderizarPedidos();
-        }
       } else {
         window.voltarParaClientes();
-        window.fecharModalPedidos();
       }
     }
   }
@@ -162,11 +157,9 @@ function renderizarClientes(lista) {
     const tr = document.createElement('tr');
     tr.className = "border-b hover:bg-gray-50 text-sm";
     
-    // NOVIDADE: Botão 🛒 Pedidos adicionado ao lado de Descontos
     let acoesHtml = `
       <div class="flex flex-wrap justify-center gap-1">
         <button onclick="abrirTabelaDescontos('${cli.id}')" class="bg-emerald-100 hover:bg-emerald-200 text-emerald-800 text-xs px-2 py-1 rounded font-semibold">📋 Descontos</button>
-        <button onclick="abrirModalPedidos('${cli.id}')" class="bg-blue-100 hover:bg-blue-200 text-blue-800 text-xs px-2 py-1 rounded font-semibold">🛒 Pedidos</button>
       </div>
     `;
 
@@ -268,7 +261,6 @@ window.salvarCliente = async function(e) {
   const idDocumento = idAtual ? idAtual : Date.now().toString(); 
   const clienteAntigo = idAtual ? clientes.find(c => c.id === idAtual) : null;
   const descontosAntigos = clienteAntigo ? clienteAntigo.descontos || [] : [];
-  const pedidosAntigos = clienteAntigo ? clienteAntigo.pedidos || [] : []; // Preserva os pedidos
 
   const dados = {
     codigo: codigoDigitado,
@@ -278,8 +270,7 @@ window.salvarCliente = async function(e) {
     cnpj: cnpjDigitado,
     coluna1: document.getElementById('cliColuna1').value.trim() || 'Desc. Prazo (%)',
     coluna2: document.getElementById('cliColuna2').value.trim() || 'Desc. Vista (%)',
-    descontos: descontosAntigos,
-    pedidos: pedidosAntigos
+    descontos: descontosAntigos
   };
 
   try {
@@ -293,7 +284,7 @@ window.salvarCliente = async function(e) {
 window.excluirCliente = async function(id) {
   if (perfilAtivo !== 'admin') return;
 
-  if (confirm("Tem certeza que deseja apagar este cliente e todo o seu histórico (tabelas e pedidos)?")) {
+  if (confirm("Tem certeza que deseja apagar este cliente e sua tabela?")) {
     try {
       await deleteDoc(doc(db, "clientes", id));
     } catch (error) {
@@ -302,112 +293,7 @@ window.excluirCliente = async function(id) {
   }
 };
 
-// ==================== FUNCIONALIDADE: HISTÓRICO DE PEDIDOS ====================
-
-window.abrirModalPedidos = function(clienteId) {
-  clienteAtual = clientes.find(c => c.id === clienteId);
-  if (!clienteAtual) return;
-
-  document.getElementById('pedidosNomeCliente').innerText = clienteAtual.razao;
-  
-  // Define a data de hoje como padrão no formulário
-  document.getElementById('pedData').value = new Date().toISOString().split('T')[0];
-  document.getElementById('pedValor').value = '';
-  document.getElementById('pedDesconto').value = '';
-
-  renderizarPedidos();
-  document.getElementById('modalPedidos').classList.remove('hidden');
-};
-
-window.fecharModalPedidos = function() {
-  document.getElementById('modalPedidos').classList.add('hidden');
-  clienteAtual = null;
-};
-
-function renderizarPedidos() {
-  const tbody = document.getElementById('tabelaPedidosCorpo');
-  tbody.innerHTML = '';
-
-  const listaPedidos = clienteAtual.pedidos || [];
-
-  if (listaPedidos.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="4" class="p-4 text-center text-gray-500 text-sm">Nenhum pedido registado para este cliente.</td></tr>`;
-    return;
-  }
-
-  // Ordena do mais recente para o mais antigo com base na data do pedido
-  const pedidosOrdenados = [...listaPedidos].sort((a, b) => new Date(b.data) - new Date(a.data));
-
-  pedidosOrdenados.forEach((ped) => {
-    const tr = document.createElement('tr');
-    tr.className = "border-b bg-white hover:bg-gray-50 text-sm";
-
-    // Formata a data (YYYY-MM-DD para DD/MM/YYYY)
-    const [ano, mes, dia] = ped.data.split('-');
-    const dataFormatada = `${dia}/${mes}/${ano}`;
-
-    // Formata o valor em Reais (BRL)
-    const valorFormatado = parseFloat(ped.valor).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-
-    tr.innerHTML = `
-      <td class="p-3 text-gray-800">${dataFormatada}</td>
-      <td class="p-3 text-right font-mono font-medium text-emerald-700">${valorFormatado}</td>
-      <td class="p-3 text-right font-mono text-gray-700">${Number(ped.desconto).toFixed(2)}%</td>
-      <td class="p-3 text-center">
-        <button onclick="excluirPedido(${ped.id})" class="text-red-500 hover:text-red-700 font-bold text-lg" title="Apagar Pedido">&times;</button>
-      </td>
-    `;
-    tbody.appendChild(tr);
-  });
-}
-
-window.adicionarPedido = async function() {
-  const dataEl = document.getElementById('pedData');
-  const valorEl = document.getElementById('pedValor');
-  const descontoEl = document.getElementById('pedDesconto');
-  
-  if (!dataEl || !valorEl || !descontoEl) return;
-
-  const data = dataEl.value;
-  const valor = parseFloat(valorEl.value);
-  const desconto = parseFloat(descontoEl.value) || 0;
-
-  if (!data || isNaN(valor)) {
-    alert('Por favor, preencha a Data e o Valor Líquido do pedido.');
-    return;
-  }
-
-  const novosPedidos = [...(clienteAtual.pedidos || [])];
-
-  novosPedidos.push({ 
-    id: Date.now(), 
-    data, 
-    valor, 
-    desconto 
-  });
-
-  try {
-    await setDoc(doc(db, "clientes", clienteAtual.id), { ...clienteAtual, pedidos: novosPedidos });
-    // Limpa campos
-    valorEl.value = '';
-    descontoEl.value = '';
-  } catch (erro) {
-    alert("Erro ao gravar pedido: " + erro.message);
-  }
-};
-
-window.excluirPedido = async function(pedidoId) {
-  if (confirm('Tem a certeza que deseja excluir este pedido do histórico?')) {
-    const novosPedidos = (clienteAtual.pedidos || []).filter(p => p.id !== pedidoId);
-    try {
-      await setDoc(doc(db, "clientes", clienteAtual.id), { ...clienteAtual, pedidos: novosPedidos });
-    } catch (erro) {
-      alert("Erro ao excluir pedido: " + erro.message);
-    }
-  }
-};
-
-// ==================== TABELA DE DESCONTOS (CÓDIGO EXISTENTE) ====================
+// ==================== TABELA DE DESCONTOS ====================
 
 window.abrirTabelaDescontos = function(clienteId) {
   clienteAtual = clientes.find(c => c.id === clienteId);
