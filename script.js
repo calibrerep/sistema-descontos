@@ -81,7 +81,7 @@ window.fazerLogin = async function() {
   const senhaInput = document.getElementById('loginSenha').value;
 
   if (!emailInput || !senhaInput) {
-    alert('Preencha o e-mail e a senha.');
+    alert('Preencha o e-mail e a palavra-passe.');
     return;
   }
 
@@ -109,9 +109,9 @@ function entrarSistemaInterface(perfil) {
   const btnBackup = document.getElementById('btnBackup');
   const btnRestaurar = document.getElementById('btnRestaurar');
   
-  if (btnNovoCliente) btnNovoCliente.style.display = perfil === 'admin' ? 'inline-flex' : 'none';
-  if (btnBackup) btnBackup.style.display = perfil === 'admin' ? 'inline-flex' : 'none';
-  if (btnRestaurar) btnRestaurar.style.display = perfil === 'admin' ? 'inline-flex' : 'none';
+  if (btnNovoCliente) btnNovoCliente.style.display = perfil === 'admin' ? 'flex' : 'none';
+  if (btnBackup) btnBackup.style.display = perfil === 'admin' ? 'flex' : 'none';
+  if (btnRestaurar) btnRestaurar.style.display = perfil === 'admin' ? 'flex' : 'none';
 
   window.filtrarClientes();
 }
@@ -161,7 +161,6 @@ window.restaurarBackup = async function(event) {
 
       let restauradosCount = 0;
       
-      // Grava cliente a cliente no Firebase Firestore
       for (const cli of dadosRestaurados) {
         if (cli && cli.id) {
           await setDoc(doc(db, "clientes", cli.id), cli);
@@ -175,7 +174,7 @@ window.restaurarBackup = async function(event) {
       alert("Erro ao ler ou restaurar o ficheiro de backup: " + erro.message);
     }
     
-    event.target.value = ''; // Limpa o input
+    event.target.value = ''; 
   };
   
   reader.readAsText(file);
@@ -231,7 +230,7 @@ function renderizarClientes(lista) {
 
   lista.forEach(cli => {
     const temPendencia = cli.descontos && cli.descontos.some(p => p.status === 'pendente');
-    const badgePendencia = (perfilAtivo === 'admin' && temPendencia) ? '<span class="bg-amber-100 text-amber-800 text-[10px] px-2 py-0.5 rounded font-bold ml-1 animate-pulse">⚠️ Aprovar</span>' : '';
+    const badgePendencia = (perfilAtivo === 'admin' && temPendencia) ? '<span class="bg-amber-100 text-amber-800 text-[10px] px-2 py-0.5 rounded font-bold ml-2 animate-pulse">⚠️ Aprovar</span>' : '';
     
     const dataAtualizacao = cli.ultimaAtualizacao ? new Date(cli.ultimaAtualizacao).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute:'2-digit' }) : 'Sem data';
 
@@ -240,30 +239,31 @@ function renderizarClientes(lista) {
     
     let acoesHtml = `
       <div class="flex flex-wrap justify-center gap-1">
-        <button onclick="abrirTabelaDescontos('${cli.id}')" class="bg-emerald-100 hover:bg-emerald-200 text-emerald-800 text-xs px-2 py-1 rounded font-semibold">📋 Descontos</button>
+        <button onclick="abrirTabelaDescontos('${cli.id}')" class="bg-emerald-100 hover:bg-emerald-200 text-emerald-800 text-[11px] md:text-xs px-2 py-1 rounded font-semibold whitespace-nowrap">📋 Descontos</button>
       </div>
     `;
 
     if (perfilAtivo === 'admin') {
       acoesHtml += `
         <div class="flex flex-wrap justify-center gap-1 mt-1">
-          <button onclick="abrirModalCliente('${cli.id}')" class="bg-gray-200 hover:bg-gray-300 text-gray-800 text-xs px-2 py-1 rounded font-semibold">✏️ Editar</button>
-          <button onclick="excluirCliente('${cli.id}')" class="bg-red-100 hover:bg-red-200 text-red-800 text-xs px-2 py-1 rounded font-semibold">🗑️ Excluir</button>
+          <button onclick="abrirModalCliente('${cli.id}')" class="bg-gray-200 hover:bg-gray-300 text-gray-800 text-[11px] md:text-xs px-2 py-1 rounded font-semibold whitespace-nowrap">✏️ Editar</button>
+          <button onclick="excluirCliente('${cli.id}')" class="bg-red-100 hover:bg-red-200 text-red-800 text-[11px] md:text-xs px-2 py-1 rounded font-semibold whitespace-nowrap">🗑️ Excluir</button>
         </div>
       `;
     }
 
+    // A classe whitespace-nowrap obriga a criar o scroll horizontal caso o ecrã seja muito pequeno
     tr.innerHTML = `
-      <td class="p-3 font-semibold text-blue-600">${cli.codigo}</td>
-      <td class="p-3">
+      <td class="p-3 font-semibold text-blue-600 whitespace-nowrap">${cli.codigo}</td>
+      <td class="p-3 min-w-[220px]">
         <div class="font-bold text-gray-900">${cli.razao} ${badgePendencia}</div>
         <div class="text-xs text-gray-500 mb-1">${cli.fantasia || '-'}</div>
         <div class="text-[10px] text-gray-400 font-medium">🕒 Atualizado: ${dataAtualizacao}</div>
       </td>
-      <td class="p-3">
+      <td class="p-3 whitespace-nowrap">
         <span class="bg-gray-100 text-gray-800 text-xs px-2 py-1 rounded border">${cli.consultor}</span>
       </td>
-      <td class="p-3 text-center">
+      <td class="p-3 text-center min-w-[120px]">
         ${acoesHtml}
       </td>
     `;
@@ -327,7 +327,7 @@ window.salvarCliente = async function(e) {
   const ultimaAtualizacao = clienteAntigo ? clienteAntigo.ultimaAtualizacao : new Date().toISOString();
 
   const dados = {
-    id: idDocumento, // Importante gravar o ID para o restauro funcionar perfeitamente
+    id: idDocumento,
     codigo: codigoDigitado,
     consultor: document.getElementById('cliConsultor').value,
     razao: document.getElementById('cliRazao').value.trim(),
@@ -382,11 +382,11 @@ window.abrirTabelaDescontos = function(clienteId) {
   const btnExcluirTodos = document.getElementById('btnExcluirTodos');
   const btnAprovarTodos = document.getElementById('btnAprovarTodos');
   
-  if (btnImportarExcel) btnImportarExcel.style.display = perfilAtivo === 'admin' ? 'inline-flex' : 'none';
-  if (btnExcluirTodos) btnExcluirTodos.style.display = perfilAtivo === 'admin' ? 'inline-flex' : 'none';
+  if (btnImportarExcel) btnImportarExcel.style.display = perfilAtivo === 'admin' ? 'flex' : 'none';
+  if (btnExcluirTodos) btnExcluirTodos.style.display = perfilAtivo === 'admin' ? 'flex' : 'none';
   if (btnAprovarTodos) {
     const temPendencias = clienteAtual.descontos && clienteAtual.descontos.some(p => p.status === 'pendente');
-    btnAprovarTodos.style.display = (perfilAtivo === 'admin' && temPendencias) ? 'inline-flex' : 'none';
+    btnAprovarTodos.style.display = (perfilAtivo === 'admin' && temPendencias) ? 'flex' : 'none';
   }
 
   renderizarDescontos();
@@ -425,40 +425,41 @@ function renderizarDescontos() {
     if (perfilAtivo === 'admin') {
       if (isPendente) {
         acoesHtml = `
-          <div class="flex justify-center gap-1">
-            <button onclick="aprovarProduto(${prod.id})" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs px-2 py-1 rounded font-semibold">✔ Aprovar</button>
-            <button onclick="rejeitarProduto(${prod.id})" class="bg-red-600 hover:bg-red-700 text-white text-xs px-2 py-1 rounded font-semibold">✖ Rejeitar</button>
+          <div class="flex flex-wrap justify-center gap-1">
+            <button onclick="aprovarProduto(${prod.id})" class="w-full md:w-auto bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] md:text-xs px-2 py-1 rounded font-semibold">✔ Aprovar</button>
+            <button onclick="rejeitarProduto(${prod.id})" class="w-full md:w-auto bg-red-600 hover:bg-red-700 text-white text-[11px] md:text-xs px-2 py-1 rounded font-semibold">✖ Rejeitar</button>
           </div>
         `;
       } else {
         acoesHtml = `
-          <div class="flex justify-center items-center gap-2">
-            <span class="text-xs text-emerald-700 font-bold">Aprovado</span>
-            <button onclick="window.excluirProduto(${prod.id})" class="text-red-600 hover:text-red-800 text-xs font-semibold">Excluir</button>
+          <div class="flex flex-wrap justify-center items-center gap-2">
+            <span class="text-[11px] md:text-xs text-emerald-700 font-bold whitespace-nowrap">Aprovado</span>
+            <button onclick="window.excluirProduto(${prod.id})" class="text-red-600 hover:text-red-800 text-[11px] md:text-xs font-semibold whitespace-nowrap">Excluir</button>
           </div>
         `;
       }
     } else {
-      acoesHtml = isPendente ? `<span class="text-xs text-amber-700 font-bold">Em análise</span>` : `<span class="text-xs text-emerald-700 font-bold">Aprovado</span>`;
+      acoesHtml = isPendente ? `<span class="text-[11px] md:text-xs text-amber-700 font-bold whitespace-nowrap">Em análise</span>` : `<span class="text-[11px] md:text-xs text-emerald-700 font-bold whitespace-nowrap">Aprovado</span>`;
     }
 
+    // Min-width garante que no telemóvel as caixas de input não se esmagam
     tr.innerHTML = `
-      <td class="border border-gray-200 p-2">
+      <td class="border border-gray-200 p-2 min-w-[200px]">
         <input type="text" id="input-nome-${prod.id}" value="${prod.nome}" class="w-full bg-transparent border border-transparent hover:border-gray-300 focus:border-blue-500 rounded p-1 text-sm font-medium text-gray-900 outline-none transition-colors" />
         ${isPendente ? `<div class="text-[11px] text-amber-700 font-bold mt-1 ml-1">⚠️ Sugestão pendente</div>` : ''}
       </td>
-      <td class="border border-gray-200 p-2 text-right">
+      <td class="border border-gray-200 p-2 text-right min-w-[100px]">
         <input type="number" step="0.01" value="${valPrazo}" id="input-prazo-${prod.id}" class="w-full bg-transparent border border-gray-300 rounded p-1 text-sm text-right outline-none font-mono" />
       </td>
-      <td class="border border-gray-200 p-2 text-right">
+      <td class="border border-gray-200 p-2 text-right min-w-[100px]">
         <input type="number" step="0.01" value="${valVista}" id="input-vista-${prod.id}" class="w-full bg-transparent border border-gray-300 rounded p-1 text-sm text-right outline-none font-mono" />
       </td>
-      <td class="border border-gray-200 p-2 text-center no-print">
+      <td class="border border-gray-200 p-2 text-center no-print min-w-[140px]">
         <div class="flex flex-col items-center gap-1">
           ${acoesHtml}
           ${perfilAtivo !== 'admin' ? 
-            (!isPendente ? `<button onclick="sugerirAlteracao(${prod.id})" class="bg-blue-600 hover:bg-blue-700 text-white text-[10px] px-2 py-0.5 rounded font-semibold mt-1">Sugerir</button>` : '') 
-            : `<button onclick="salvarAdminDireto(${prod.id})" class="bg-gray-700 hover:bg-gray-800 text-white text-[10px] px-2 py-0.5 rounded font-semibold mt-1">Atualizar</button>`}
+            (!isPendente ? `<button onclick="sugerirAlteracao(${prod.id})" class="w-full bg-blue-600 hover:bg-blue-700 text-white text-[11px] md:text-xs px-2 py-1 rounded font-semibold mt-1">Sugerir</button>` : '') 
+            : `<button onclick="salvarAdminDireto(${prod.id})" class="w-full bg-gray-700 hover:bg-gray-800 text-white text-[11px] md:text-xs px-2 py-1 rounded font-semibold mt-1">Atualizar</button>`}
         </div>
       </td>
     `;
