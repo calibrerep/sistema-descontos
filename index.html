@@ -152,6 +152,16 @@
         </button>
       </div>
 
+      <!-- 👇 NOVO: Campo de Busca com Lupa 🔍 na Tabela de Descontos 👇 -->
+      <div class="bg-white p-3 rounded-lg shadow no-print">
+        <div class="relative w-full">
+          <span class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-gray-400">
+            🔍
+          </span>
+          <input type="text" id="buscaProduto" onkeyup="renderizarDescontos()" placeholder="Pesquisar produto ou referência nesta tabela..." class="w-full pl-9 pr-3 py-2 border rounded text-sm outline-none focus:ring-2 focus:ring-blue-500" />
+        </div>
+      </div>
+
       <!-- Tabela de Descontos (Com rolagem lateral forçada para evitar esmagamento) -->
       <div class="bg-white rounded-lg shadow overflow-x-auto w-full">
         <table class="w-full border-collapse border border-gray-200 min-w-[700px]">

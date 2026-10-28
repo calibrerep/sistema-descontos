@@ -370,6 +370,10 @@ window.abrirTabelaDescontos = function(clienteId) {
   document.getElementById('detalheCnpj').innerText = clienteAtual.cnpj ? `CNPJ: ${clienteAtual.cnpj}` : '';
   document.getElementById('detalheConsultor').innerText = `Atendido por: ${clienteAtual.consultor}`;
 
+  // Limpa o campo de busca de produtos sempre que abre a tabela de um novo cliente
+  const buscaInput = document.getElementById('buscaProduto');
+  if (buscaInput) buscaInput.value = '';
+
   const nomeCol1 = clienteAtual.coluna1 || 'Desc. Prazo (%)';
   const nomeCol2 = clienteAtual.coluna2 || 'Desc. Vista (%)';
   
@@ -394,23 +398,30 @@ window.abrirTabelaDescontos = function(clienteId) {
   document.getElementById('telaDescontos').classList.remove('hidden');
 };
 
-window.voltarParaClientes = function() {
-  clienteAtual = null;
-  document.getElementById('telaDescontos').classList.add('hidden');
-  document.getElementById('telaClientes').classList.remove('hidden');
-  window.filtrarClientes();
-};
-
 function renderizarDescontos() {
   const tbody = document.getElementById('tabelaDescontosCorpo');
   tbody.innerHTML = '';
 
-  if (!clienteAtual.descontos || clienteAtual.descontos.length === 0) {
+  if (!clienteAtual || !clienteAtual.descontos || clienteAtual.descontos.length === 0) {
     tbody.innerHTML = `<tr><td colspan="4" class="p-4 text-center text-gray-500 text-sm">Nenhum produto/desconto cadastrado.</td></tr>`;
     return;
   }
 
-  const descontosOrdenados = [...clienteAtual.descontos].sort((a, b) => a.nome.localeCompare(b.nome));
+  // Captura o termo de busca em tempo real
+  const buscaInput = document.getElementById('buscaProduto');
+  const termo = buscaInput ? buscaInput.value.toLowerCase().trim() : '';
+
+  // Filtra os produtos com base na busca
+  const produtosFiltrados = clienteAtual.descontos.filter(p => 
+    p.nome.toLowerCase().includes(termo)
+  );
+
+  if (produtosFiltrados.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="4" class="p-4 text-center text-gray-500 text-sm">Nenhum produto encontrado para "${termo}".</td></tr>`;
+    return;
+  }
+
+  const descontosOrdenados = [...produtosFiltrados].sort((a, b) => a.nome.localeCompare(b.nome));
 
   descontosOrdenados.forEach((prod) => {
     const tr = document.createElement('tr');
@@ -442,7 +453,6 @@ function renderizarDescontos() {
       acoesHtml = isPendente ? `<span class="text-[11px] md:text-xs text-amber-700 font-bold whitespace-nowrap">Em análise</span>` : `<span class="text-[11px] md:text-xs text-emerald-700 font-bold whitespace-nowrap">Aprovado</span>`;
     }
 
-    // Min-width garante que no telemóvel as caixas de input não se esmagam
     tr.innerHTML = `
       <td class="border border-gray-200 p-2 min-w-[200px]">
         <input type="text" id="input-nome-${prod.id}" value="${prod.nome}" class="w-full bg-transparent border border-transparent hover:border-gray-300 focus:border-blue-500 rounded p-1 text-sm font-medium text-gray-900 outline-none transition-colors" />
