@@ -407,20 +407,22 @@ function renderizarDescontos() {
     return;
   }
 
-  // Captura o termo de busca em tempo real
+  // 1. Lê o termo digitado na barra de busca
   const buscaInput = document.getElementById('buscaProduto');
   const termo = buscaInput ? buscaInput.value.toLowerCase().trim() : '';
 
-  // Filtra os produtos com base na busca
+  // 2. Filtra os produtos com base na busca em tempo real
   const produtosFiltrados = clienteAtual.descontos.filter(p => 
     p.nome.toLowerCase().includes(termo)
   );
 
+  // 3. Exibe mensagem se nenhum produto corresponder à busca
   if (produtosFiltrados.length === 0) {
     tbody.innerHTML = `<tr><td colspan="4" class="p-4 text-center text-gray-500 text-sm">Nenhum produto encontrado para "${termo}".</td></tr>`;
     return;
   }
 
+  // 4. Ordena os produtos filtrados alfabeticamente
   const descontosOrdenados = [...produtosFiltrados].sort((a, b) => a.nome.localeCompare(b.nome));
 
   descontosOrdenados.forEach((prod) => {
