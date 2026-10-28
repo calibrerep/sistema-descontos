@@ -12,7 +12,8 @@ import {
   doc, 
   setDoc, 
   deleteDoc, 
-  onSnapshot 
+  onSnapshot,
+  enableIndexedDbPersistence
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 
 const firebaseConfig = {
@@ -27,6 +28,15 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
+
+// ==================== ATIVAÇÃO DO MODO OFFLINE (CACHE LOCAL) ====================
+enableIndexedDbPersistence(db).catch((err) => {
+  if (err.code === 'failed-precondition') {
+    console.warn('Persistência offline: Múltiplas abas abertas ao mesmo tempo.');
+  } else if (err.code === 'unimplemented') {
+    console.warn('O navegador atual não suporta armazenamento local offline.');
+  }
+});
 
 let clientes = [];
 let clienteAtual = null;

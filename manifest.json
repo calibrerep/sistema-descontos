@@ -1,0 +1,16 @@
+{
+  "name": "Sistema de Descontos",
+  "short_name": "Descontos",
+  "description": "Gestão de Clientes e Tabelas de Descontos",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#f3f4f6",
+  "theme_color": "#2563eb",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/3135/3135715.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
