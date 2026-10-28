@@ -53,6 +53,49 @@ onAuthStateChanged(auth, (user) => {
   }
 });
 
+// ==================== REGISTO DE LOG DE AUDITORIA ====================
+function registrarLog(cliente, acao, detalhe) {
+  if (!cliente) return;
+  if (!cliente.historico) cliente.historico = [];
+  
+  const log = {
+    id: Date.now(),
+    dataHora: new Date().toISOString(),
+    usuario: perfilAtivo === 'admin' ? 'Administrador' : perfilAtivo,
+    acao: acao,
+    detalhe: detalhe
+  };
+  
+  cliente.historico.unshift(log);
+  if (cliente.historico.length > 100) {
+    cliente.historico = cliente.historico.slice(0, 100);
+  }
+}
+
+// ==================== CÁLCULO DO DASHBOARD ====================
+function atualizarDashboard() {
+  const totalClientes = clientes.length;
+  let totalPendencias = 0;
+  let totalProdutos = 0;
+
+  clientes.forEach(c => {
+    if (c.descontos && Array.isArray(c.descontos)) {
+      totalProdutos += c.descontos.length;
+      if (c.descontos.some(p => p.status === 'pendente')) {
+        totalPendencias++;
+      }
+    }
+  });
+
+  const elTotalCli = document.getElementById('dashTotalClientes');
+  const elTotalPen = document.getElementById('dashTotalPendencias');
+  const elTotalProd = document.getElementById('dashTotalProdutos');
+
+  if (elTotalCli) elTotalCli.innerText = totalClientes;
+  if (elTotalPen) elTotalPen.innerText = totalPendencias;
+  if (elTotalProd) elTotalProd.innerText = totalProdutos;
+}
+
 // ==================== REALTIME LISTENER DO FIRESTORE ====================
 onSnapshot(collection(db, "clientes"), (snapshot) => {
   clientes = [];
@@ -62,6 +105,7 @@ onSnapshot(collection(db, "clientes"), (snapshot) => {
 
   if (auth.currentUser) {
     window.filtrarClientes();
+    atualizarDashboard();
     if (clienteAtual) {
       const atualizado = clientes.find(c => c.id === clienteAtual.id);
       if (atualizado) {
@@ -114,6 +158,7 @@ function entrarSistemaInterface(perfil) {
   if (btnRestaurar) btnRestaurar.style.display = perfil === 'admin' ? 'flex' : 'none';
 
   window.filtrarClientes();
+  atualizarDashboard();
 }
 
 function sairSistemaInterface() {
@@ -326,8 +371,9 @@ window.salvarCliente = async function(e) {
   const idDocumento = idAtual ? idAtual : Date.now().toString(); 
   const clienteAntigo = idAtual ? clientes.find(c => c.id === idAtual) : null;
   const descontosAntigos = clienteAntigo ? clienteAntigo.descontos || [] : [];
+  const historicoAntigo = clienteAntigo ? clienteAntigo.historico || [] : [];
   
-  const ultimaAtualizacao = clienteAntigo ? clienteAntigo.ultimaAtualizacao : new Date().toISOString();
+  const ultimaAtualizacao = new Date().toISOString();
 
   const dados = {
     id: idDocumento,
@@ -339,8 +385,11 @@ window.salvarCliente = async function(e) {
     coluna1: document.getElementById('cliColuna1').value.trim() || 'Desc. Prazo (%)',
     coluna2: document.getElementById('cliColuna2').value.trim() || 'Desc. Vista (%)',
     descontos: descontosAntigos,
+    historico: historicoAntigo,
     ultimaAtualizacao: ultimaAtualizacao
   };
+
+  registrarLog(dados, idAtual ? 'Edição de Cliente' : 'Novo Cliente', `Dados do cliente cadastrados/atualizados.`);
 
   try {
     await setDoc(doc(db, "clientes", idDocumento), dados);
@@ -361,6 +410,46 @@ window.excluirCliente = async function(id) {
   }
 };
 
+// ==================== MODAL DE HISTÓRICO ====================
+
+window.abrirModalHistorico = function() {
+  if (!clienteAtual) return;
+  const container = document.getElementById('listaHistorico');
+  if (!container) return;
+  container.innerHTML = '';
+
+  const historico = clienteAtual.historico || [];
+
+  if (historico.length === 0) {
+    container.innerHTML = `<p class="text-gray-500 text-center py-4">Nenhuma alteração registrada ainda para este cliente.</p>`;
+  } else {
+    historico.forEach(item => {
+      const dataFmt = new Date(item.dataHora).toLocaleDateString('pt-BR', {
+        day: '2-digit', month: '2-digit', year: 'numeric',
+        hour: '2-digit', minute: '2-digit'
+      });
+
+      const div = document.createElement('div');
+      div.className = "p-3 bg-gray-50 rounded border border-gray-200";
+      div.innerHTML = `
+        <div class="flex justify-between items-center mb-1">
+          <span class="font-bold text-blue-600">${item.acao}</span>
+          <span class="text-[11px] text-gray-400">🕒 ${dataFmt}</span>
+        </div>
+        <p class="text-gray-800 text-xs">${item.detalhe}</p>
+        <div class="text-[10px] text-gray-500 mt-1">por <strong class="text-gray-700">${item.usuario}</strong></div>
+      `;
+      container.appendChild(div);
+    });
+  }
+
+  document.getElementById('modalHistorico').classList.remove('hidden');
+};
+
+window.fecharModalHistorico = function() {
+  document.getElementById('modalHistorico').classList.add('hidden');
+};
+
 // ==================== TABELA DE DESCONTOS ====================
 
 window.abrirTabelaDescontos = function(clienteId) {
@@ -373,7 +462,6 @@ window.abrirTabelaDescontos = function(clienteId) {
   document.getElementById('detalheCnpj').innerText = clienteAtual.cnpj ? `CNPJ: ${clienteAtual.cnpj}` : '';
   document.getElementById('detalheConsultor').innerText = `Atendido por: ${clienteAtual.consultor}`;
 
-  // Limpa o campo de busca de produtos sempre que abre a tabela de um novo cliente
   const buscaInput = document.getElementById('buscaProduto');
   if (buscaInput) buscaInput.value = '';
 
@@ -423,22 +511,18 @@ window.renderizarDescontos = function() {
     return;
   }
 
-  // 1. Lê o termo digitado na barra de busca
   const buscaInput = document.getElementById('buscaProduto');
   const termo = buscaInput ? buscaInput.value.toLowerCase().trim() : '';
 
-  // 2. Filtra os produtos com base na busca em tempo real
   const produtosFiltrados = clienteAtual.descontos.filter(p => 
     p.nome && String(p.nome).toLowerCase().includes(termo)
   );
 
-  // 3. Exibe mensagem se nenhum produto corresponder à busca
   if (produtosFiltrados.length === 0) {
     tbody.innerHTML = `<tr><td colspan="4" class="p-4 text-center text-gray-500 text-sm">Nenhum produto encontrado para "${termo}".</td></tr>`;
     return;
   }
 
-  // 4. Ordena os produtos filtrados alfabeticamente
   const descontosOrdenados = [...produtosFiltrados].sort((a, b) => String(a.nome || '').localeCompare(String(b.nome || '')));
 
   descontosOrdenados.forEach((prod) => {
@@ -512,14 +596,18 @@ window.adicionarProduto = async function() {
   if (jaExiste) { alert('Atenção: Este produto já está cadastrado!'); return; }
 
   const novosDescontos = [...(clienteAtual.descontos || [])];
+  const status = perfilAtivo === 'admin' ? 'aprovado' : 'pendente';
+  
   novosDescontos.push({ 
     id: Date.now(), 
     nome, 
     desconto, 
     descontoVista, 
-    status: perfilAtivo === 'admin' ? 'aprovado' : 'pendente',
+    status: status,
     valorAntigo: null
   });
+
+  registrarLog(clienteAtual, 'Novo Produto', `Produto "${nome}" adicionado com ${desconto}% e ${descontoVista}%. Status: ${status}`);
 
   try {
     await setDoc(doc(db, "clientes", clienteAtual.id), { ...clienteAtual, descontos: novosDescontos, ultimaAtualizacao: new Date().toISOString() });
@@ -548,6 +636,8 @@ window.sugerirAlteracao = async function(id) {
     novosDescontos[prodIndex].desconto = parseFloat(prazoEl.value) || 0;
     novosDescontos[prodIndex].descontoVista = parseFloat(vistaEl.value) || 0;
     novosDescontos[prodIndex].status = 'pendente';
+
+    registrarLog(clienteAtual, 'Sugestão de Alteração', `Sugestão enviada para "${novoNome}": ${prazoEl.value}% / ${vistaEl.value}%`);
 
     try {
       await setDoc(doc(db, "clientes", clienteAtual.id), { ...clienteAtual, descontos: novosDescontos, ultimaAtualizacao: new Date().toISOString() });
@@ -581,6 +671,8 @@ window.salvarAdminDireto = async function(id) {
     novosDescontos[prodIndex].status = 'aprovado';
     novosDescontos[prodIndex].valorAntigo = null;
 
+    registrarLog(clienteAtual, 'Atualização Direta', `Produto "${novoNome}" atualizado diretamente para ${prazoEl.value}% / ${vistaEl.value}%`);
+
     try {
       await setDoc(doc(db, "clientes", clienteAtual.id), { ...clienteAtual, descontos: novosDescontos, ultimaAtualizacao: new Date().toISOString() });
       alert('Produto atualizado com sucesso!');
@@ -594,6 +686,7 @@ window.aprovarProduto = async function(id) {
   const prod = novosDescontos.find(p => p.id === id);
   if (prod) {
     prod.status = 'aprovado'; prod.valorAntigo = null;
+    registrarLog(clienteAtual, 'Aprovação', `Produto "${prod.nome}" aprovado.`);
     await setDoc(doc(db, "clientes", clienteAtual.id), { ...clienteAtual, descontos: novosDescontos, ultimaAtualizacao: new Date().toISOString() });
   }
 };
@@ -610,6 +703,8 @@ window.aprovarTodosProdutos = async function() {
       return p;
     });
     
+    registrarLog(clienteAtual, 'Aprovação em Lote', `Todas as sugestões pendentes foram aprovadas.`);
+
     try {
       await setDoc(doc(db, "clientes", clienteAtual.id), { ...clienteAtual, descontos: novosDescontos, ultimaAtualizacao: new Date().toISOString() });
       alert('Todos os produtos foram aprovados!');
@@ -622,14 +717,24 @@ window.aprovarTodosProdutos = async function() {
 window.rejeitarProduto = async function(id) {
   if (perfilAtivo !== 'admin') return;
   const novosDescontos = [...clienteAtual.descontos];
+  const prod = novosDescontos.find(p => p.id === id);
   const filtrados = novosDescontos.filter(p => p.id !== id);
+  
+  if (prod) {
+    registrarLog(clienteAtual, 'Rejeição', `Sugestão para o produto "${prod.nome}" foi rejeitada.`);
+  }
+
   await setDoc(doc(db, "clientes", clienteAtual.id), { ...clienteAtual, descontos: filtrados, ultimaAtualizacao: new Date().toISOString() });
 };
 
 window.excluirProduto = async function(id) {
   if (perfilAtivo !== 'admin') return;
+  const prod = clienteAtual.descontos.find(p => p.id === id);
   if (confirm('Remover este produto?')) {
     const novosDescontos = clienteAtual.descontos.filter(p => p.id !== id);
+    if (prod) {
+      registrarLog(clienteAtual, 'Exclusão', `Produto "${prod.nome}" foi removido.`);
+    }
     await setDoc(doc(db, "clientes", clienteAtual.id), { ...clienteAtual, descontos: novosDescontos, ultimaAtualizacao: new Date().toISOString() });
   }
 };
@@ -638,6 +743,7 @@ window.excluirTodosProdutos = async function() {
   if (perfilAtivo !== 'admin' || !clienteAtual) return;
   if (confirm(`Tem a certeza que deseja apagar TODOS os produtos da tabela do cliente "${clienteAtual.razao}"?`)) {
     try {
+      registrarLog(clienteAtual, 'Limpeza Total', `Todos os produtos da tabela foram removidos.`);
       await setDoc(doc(db, "clientes", clienteAtual.id), { ...clienteAtual, descontos: [], ultimaAtualizacao: new Date().toISOString() });
       alert('Tabela limpa com sucesso.');
     } catch (error) { alert("Erro ao excluir: " + error.message); }
@@ -723,6 +829,7 @@ window.processarExcel = async function(event) {
       });
 
       if (adicionados > 0) {
+        registrarLog(clienteAtual, 'Importação Excel', `${adicionados} produtos importados via ficheiro Excel.`);
         await setDoc(doc(db, "clientes", clienteAtual.id), { ...clienteAtual, descontos: novosDescontos, ultimaAtualizacao: new Date().toISOString() });
         alert(`Importação concluída! ${adicionados} produtos adicionados.`);
       } else {
