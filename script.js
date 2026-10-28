@@ -80,7 +80,19 @@ onSnapshot(collection(db, "clientes"), (snapshot) => {
           renderizarDescontos();
         }
       } else {
-        window.voltarParaClientes();
+        window.voltarParaClientes = function() {
+          clienteAtual = null;
+  
+          const telaDescontos = document.getElementById('telaDescontos');
+          const telaClientes = document.getElementById('telaClientes');
+  
+          if (telaDescontos) telaDescontos.classList.add('hidden');
+          if (telaClientes) telaClientes.classList.remove('hidden');
+  
+          if (typeof window.filtrarClientes === 'function') {
+            window.filtrarClientes();
+          }
+        };
       }
     }
   }
@@ -211,8 +223,7 @@ window.alternarFiltroPendencias = function() {
 
 window.filtrarClientes = function() {
   const campoBusca = document.getElementById('campoBusca');
-  if (!campoBusca) return;
-  const termo = campoBusca.value.toLowerCase().trim();
+  const termo = campoBusca ? campoBusca.value.toLowerCase().trim() : '';
   
   let filtrados = clientes.filter(c => {
     if (perfilAtivo !== 'admin' && c.consultor !== perfilAtivo) return false;
@@ -220,12 +231,16 @@ window.filtrarClientes = function() {
     const temPendencia = c.descontos && c.descontos.some(p => p.status === 'pendente');
     if (mostrarApenasPendencias && !temPendencia) return false;
 
-    return c.codigo.toLowerCase().includes(termo) ||
-           c.razao.toLowerCase().includes(termo) ||
-           (c.cnpj && c.cnpj.includes(termo));
+    const codigoStr = String(c.codigo || '').toLowerCase();
+    const razaoStr = String(c.razao || '').toLowerCase();
+    const cnpjStr = String(c.cnpj || '');
+
+    return codigoStr.includes(termo) ||
+           razaoStr.includes(termo) ||
+           cnpjStr.includes(termo);
   });
 
-  filtrados.sort((a, b) => a.razao.localeCompare(b.razao));
+  filtrados.sort((a, b) => String(a.razao || '').localeCompare(String(b.razao || '')));
   renderizarClientes(filtrados);
 };
 
