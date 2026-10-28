@@ -398,8 +398,9 @@ window.abrirTabelaDescontos = function(clienteId) {
   document.getElementById('telaDescontos').classList.remove('hidden');
 };
 
-function renderizarDescontos() {
+window.renderizarDescontos = function() {
   const tbody = document.getElementById('tabelaDescontosCorpo');
+  if (!tbody) return;
   tbody.innerHTML = '';
 
   if (!clienteAtual || !clienteAtual.descontos || clienteAtual.descontos.length === 0) {
@@ -413,7 +414,7 @@ function renderizarDescontos() {
 
   // 2. Filtra os produtos com base na busca em tempo real
   const produtosFiltrados = clienteAtual.descontos.filter(p => 
-    p.nome.toLowerCase().includes(termo)
+    p.nome && p.nome.toLowerCase().includes(termo)
   );
 
   // 3. Exibe mensagem se nenhum produto corresponder à busca
@@ -477,7 +478,7 @@ function renderizarDescontos() {
     `;
     tbody.appendChild(tr);
   });
-}
+};
 
 // === LÓGICAS DE ATUALIZAÇÃO DA TABELA ===
 
