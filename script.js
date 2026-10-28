@@ -12,8 +12,7 @@ import {
   doc, 
   setDoc, 
   deleteDoc, 
-  onSnapshot,
-  enableIndexedDbPersistence
+  onSnapshot 
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 
 const firebaseConfig = {
@@ -28,15 +27,6 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
-
-// ==================== ATIVAÇÃO DO MODO OFFLINE (CACHE LOCAL) ====================
-enableIndexedDbPersistence(db).catch((err) => {
-  if (err.code === 'failed-precondition') {
-    console.warn('Persistência offline: Múltiplas abas abertas ao mesmo tempo.');
-  } else if (err.code === 'unimplemented') {
-    console.warn('O navegador atual não suporta armazenamento local offline.');
-  }
-});
 
 let clientes = [];
 let clienteAtual = null;
@@ -77,22 +67,10 @@ onSnapshot(collection(db, "clientes"), (snapshot) => {
       if (atualizado) {
         clienteAtual = atualizado;
         if (!document.getElementById('telaDescontos').classList.contains('hidden')) {
-          renderizarDescontos();
+          window.renderizarDescontos();
         }
       } else {
-        window.voltarParaClientes = function() {
-          clienteAtual = null;
-  
-          const telaDescontos = document.getElementById('telaDescontos');
-          const telaClientes = document.getElementById('telaClientes');
-  
-          if (telaDescontos) telaDescontos.classList.add('hidden');
-          if (telaClientes) telaClientes.classList.remove('hidden');
-  
-          if (typeof window.filtrarClientes === 'function') {
-            window.filtrarClientes();
-          }
-        };
+        window.voltarParaClientes();
       }
     }
   }
@@ -246,6 +224,7 @@ window.filtrarClientes = function() {
 
 function renderizarClientes(lista) {
   const tbody = document.getElementById('tabelaClientesCorpo');
+  if (!tbody) return;
   tbody.innerHTML = '';
 
   if (lista.length === 0) {
@@ -277,7 +256,6 @@ function renderizarClientes(lista) {
       `;
     }
 
-    // A classe whitespace-nowrap obriga a criar o scroll horizontal caso o ecrã seja muito pequeno
     tr.innerHTML = `
       <td class="p-3 font-semibold text-blue-600 whitespace-nowrap">${cli.codigo}</td>
       <td class="p-3 min-w-[220px]">
@@ -337,7 +315,7 @@ window.salvarCliente = async function(e) {
 
   const clienteDuplicado = clientes.find(c => 
     c.id !== idAtual && 
-    (c.codigo.toLowerCase() === codigoDigitado.toLowerCase() || (cnpjDigitado && c.cnpj === cnpjDigitado))
+    (String(c.codigo).toLowerCase() === codigoDigitado.toLowerCase() || (cnpjDigitado && c.cnpj === cnpjDigitado))
   );
 
   if (clienteDuplicado) {
@@ -418,9 +396,21 @@ window.abrirTabelaDescontos = function(clienteId) {
     btnAprovarTodos.style.display = (perfilAtivo === 'admin' && temPendencias) ? 'flex' : 'none';
   }
 
-  renderizarDescontos();
+  window.renderizarDescontos();
   document.getElementById('telaClientes').classList.add('hidden');
   document.getElementById('telaDescontos').classList.remove('hidden');
+};
+
+window.voltarParaClientes = function() {
+  clienteAtual = null;
+  
+  const telaDescontos = document.getElementById('telaDescontos');
+  const telaClientes = document.getElementById('telaClientes');
+  
+  if (telaDescontos) telaDescontos.classList.add('hidden');
+  if (telaClientes) telaClientes.classList.remove('hidden');
+  
+  window.filtrarClientes();
 };
 
 window.renderizarDescontos = function() {
@@ -439,7 +429,7 @@ window.renderizarDescontos = function() {
 
   // 2. Filtra os produtos com base na busca em tempo real
   const produtosFiltrados = clienteAtual.descontos.filter(p => 
-    p.nome && p.nome.toLowerCase().includes(termo)
+    p.nome && String(p.nome).toLowerCase().includes(termo)
   );
 
   // 3. Exibe mensagem se nenhum produto corresponder à busca
@@ -449,7 +439,7 @@ window.renderizarDescontos = function() {
   }
 
   // 4. Ordena os produtos filtrados alfabeticamente
-  const descontosOrdenados = [...produtosFiltrados].sort((a, b) => a.nome.localeCompare(b.nome));
+  const descontosOrdenados = [...produtosFiltrados].sort((a, b) => String(a.nome || '').localeCompare(String(b.nome || '')));
 
   descontosOrdenados.forEach((prod) => {
     const tr = document.createElement('tr');

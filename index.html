@@ -6,8 +6,6 @@
   <title>Sistema de Gestão de Clientes & Descontos</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-  <link rel="manifest" href="manifest.json">
-  <meta name="theme-color" content="#2563eb">
 </head>
 <body class="bg-gray-100 min-h-screen font-sans text-gray-800">
 
@@ -42,7 +40,6 @@
           <p class="text-xs md:text-sm text-gray-500">Perfil ativo: <span id="nomePerfilAtivo" class="font-bold text-blue-600">-</span></p>
         </div>
         
-        <!-- Botões de Ação do Topo (Ajustados para Mobile) -->
         <div class="flex gap-2 flex-wrap w-full md:w-auto">
           <button onclick="sairSistema()" class="flex-1 md:flex-none bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold px-3 py-2 rounded text-xs md:text-sm">
             Sair / Trocar Perfil
@@ -72,7 +69,6 @@
         </button>
       </div>
 
-      <!-- Wrapper com overflow para rolagem lateral no telemóvel -->
       <div class="bg-white rounded-lg shadow overflow-x-auto w-full">
         <table class="w-full border-collapse text-left min-w-[600px]">
           <thead>
@@ -106,7 +102,6 @@
           </div>
         </div>
 
-        <!-- Botões de Ação da Tabela (Ajustados para Mobile) -->
         <div class="no-print flex gap-2 flex-wrap w-full pt-2 md:pt-0">
           <input type="file" id="inputExcel" accept=".xlsx, .xls" class="hidden" onchange="processarExcel(event)" />
           
@@ -154,7 +149,7 @@
         </button>
       </div>
 
-      <!-- 👇 NOVO: Campo de Busca com Lupa 🔍 na Tabela de Descontos 👇 -->
+      <!-- Campo de Busca de Produtos da Tabela com Lupa 🔍 -->
       <div class="bg-white p-3 rounded-lg shadow no-print">
         <div class="relative w-full">
           <span class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-gray-400">
@@ -164,7 +159,7 @@
         </div>
       </div>
 
-      <!-- Tabela de Descontos (Com rolagem lateral forçada para evitar esmagamento) -->
+      <!-- Tabela de Descontos -->
       <div class="bg-white rounded-lg shadow overflow-x-auto w-full">
         <table class="w-full border-collapse border border-gray-200 min-w-[700px]">
           <thead>
@@ -184,7 +179,6 @@
 
   <!-- ==================== MODAL DE CADASTRO/EDIÇÃO DE CLIENTE ==================== -->
   <div id="modalCliente" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-2 hidden z-50">
-    <!-- max-h-[95vh] e overflow-y-auto garantem que o modal rola se o ecrã for pequeno -->
     <div class="bg-white rounded-lg shadow-xl max-w-lg w-full p-5 max-h-[95vh] overflow-y-auto">
       <h3 id="modalTitulo" class="text-xl font-bold text-gray-900 mb-4">Cadastrar Novo Cliente</h3>
       
