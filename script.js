@@ -152,10 +152,16 @@ function entrarSistemaInterface(perfil) {
   const btnNovoCliente = document.getElementById('btnNovoCliente');
   const btnBackup = document.getElementById('btnBackup');
   const btnRestaurar = document.getElementById('btnRestaurar');
+  const filtroConsultor = document.getElementById('filtroConsultor');
   
   if (btnNovoCliente) btnNovoCliente.style.display = perfil === 'admin' ? 'flex' : 'none';
   if (btnBackup) btnBackup.style.display = perfil === 'admin' ? 'flex' : 'none';
   if (btnRestaurar) btnRestaurar.style.display = perfil === 'admin' ? 'flex' : 'none';
+  
+  if (filtroConsultor) {
+    filtroConsultor.style.display = perfil === 'admin' ? 'block' : 'none';
+    filtroConsultor.value = '';
+  }
 
   window.filtrarClientes();
   atualizarDashboard();
@@ -247,10 +253,16 @@ window.alternarFiltroPendencias = function() {
 window.filtrarClientes = function() {
   const campoBusca = document.getElementById('campoBusca');
   const termo = campoBusca ? campoBusca.value.toLowerCase().trim() : '';
+
+  const filtroConsultor = document.getElementById('filtroConsultor');
+  const consultorSelecionado = (perfilAtivo === 'admin' && filtroConsultor) ? filtroConsultor.value : '';
   
   let filtrados = clientes.filter(c => {
     if (perfilAtivo !== 'admin' && c.consultor !== perfilAtivo) return false;
     
+    // Filtra pelo consultor escolhido no seletor
+    if (consultorSelecionado && c.consultor !== consultorSelecionado) return false;
+
     const temPendencia = c.descontos && c.descontos.some(p => p.status === 'pendente');
     if (mostrarApenasPendencias && !temPendencia) return false;
 
